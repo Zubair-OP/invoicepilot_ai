@@ -2,8 +2,11 @@ import { Router, Request, Response } from "express";
 import { constructWebhookEvent, stripe } from "../../integrations/stripe/stripe.js";
 import { Invoice } from "../../database/models/index.js";
 import { logger } from "../../observability/logger.js";
+import * as clerkController from "./clerk.controller.js";
 
 const router = Router();
+
+router.post("/clerk", clerkController.handleClerk);
 
 router.post("/stripe", async (req: Request, res: Response) => {
   try {

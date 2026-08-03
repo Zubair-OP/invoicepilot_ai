@@ -7,6 +7,7 @@ import { User } from "../../database/models/index.js";
 import { fetchClerkProfile } from "../../integrations/clerk/clerk.js";
 import { isDuplicateKeyError } from "../utils/mongo.js";
 import { logger } from "../../observability/logger.js";
+import { cacheGetAuthUser, cacheSetAuthUser } from "../cache/redis.js";
 
 /**
  * Verifies the Clerk session token, then resolves the Clerk identity to a local
@@ -45,13 +46,22 @@ export async function authenticate(req: Request, _res: Response, next: NextFunct
       throw new UnauthorizedError("Invalid or expired token");
     }
 
-    const user = await resolveUser(clerkId);
+    const cachedUser = await cacheGetAuthUser(clerkId);
+    if (cachedUser) {
+      req.user = cachedUser;
+      return next();
+    }
 
-    req.user = {
+    const user = await resolveUserForAuth(clerkId);
+
+    const requestUser = {
       userId: user._id.toString(),
       clerkId: user.clerkId,
       role: user.role,
     };
+
+    await cacheSetAuthUser(requestUser);
+    req.user = requestUser;
 
     next();
   } catch (error) {
@@ -64,8 +74,11 @@ export async function authenticate(req: Request, _res: Response, next: NextFunct
  * is their first request. Role always comes from Mongo — Clerk metadata seeds it
  * at creation, but promotion to ADMIN is a deliberate server-side action.
  */
-async function resolveUser(clerkId: string) {
+export async function resolveUserForAuth(clerkId: string) {
   const existing = await User.findOne({ clerkId });
+  if (existing?.deletedAt) {
+    throw new UnauthorizedError("Account is deactivated");
+  }
   if (existing) return existing;
 
   const profile = await fetchClerkProfile(clerkId);
@@ -79,7 +92,7 @@ async function resolveUser(clerkId: string) {
     // findOne and race to insert. The unique index on clerkId makes one of them
     // fail with E11000; that loser just reads the winner's document.
     if (isDuplicateKeyError(error)) {
-      const raced = await User.findOne({ clerkId });
+      const raced = await User.findOne({ clerkId, deletedAt: { $exists: false } });
       if (raced) return raced;
     }
     throw error;

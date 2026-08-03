@@ -9,11 +9,13 @@ import { connectDatabase, disconnectDatabase } from "./database/client.js";
 import { requestId } from "./common/middlewares/requestId.js";
 import { errorHandler, notFoundHandler } from "./common/middlewares/errorHandler.js";
 import { logger } from "./observability/logger.js";
+import { closeRedisCache } from "./common/cache/redis.js";
 
 import { usersRoutes } from "./modules/users/index.js";
 import { customersRoutes } from "./modules/customers/index.js";
 import { invoicesRoutes } from "./modules/invoices/index.js";
 import { webhooksRoutes } from "./modules/webhooks/index.js";
+import { adminRoutes } from "./modules/admin/index.js";
 import healthRoutes from "./health/health.routes.js";
 
 const app = express();
@@ -45,6 +47,7 @@ app.use("/health", healthRoutes);
 app.use(`${env.API_PREFIX}/users`, usersRoutes);
 app.use(`${env.API_PREFIX}/customers`, customersRoutes);
 app.use(`${env.API_PREFIX}/invoices`, invoicesRoutes);
+app.use(`${env.API_PREFIX}/admin`, adminRoutes);
 
 app.use(notFoundHandler);
 app.use(errorHandler);
@@ -64,6 +67,7 @@ main().catch((err) => {
 
 process.on("SIGTERM", async () => {
   logger.info("SIGTERM received, shutting down...");
+  await closeRedisCache();
   await disconnectDatabase();
   process.exit(0);
 });

@@ -46,6 +46,19 @@ export interface IUser {
   company?: string;
   avatar?: string;
   role: UserRole;
+  deletedAt?: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface IActivityLog {
+  _id: mongoose.Types.ObjectId;
+  userId: mongoose.Types.ObjectId | string;
+  action: string;
+  targetType?: string;
+  targetId?: mongoose.Types.ObjectId | string;
+  metadata?: Record<string, unknown>;
+  ipAddress?: string;
   createdAt: Date;
   updatedAt: Date;
 }

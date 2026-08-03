@@ -1,4 +1,4 @@
-import { createClerkClient, type User as ClerkUser } from "@clerk/backend";
+import { createClerkClient } from "@clerk/backend";
 import { env } from "../../config/env.js";
 import type { UserRole } from "../../common/types/index.js";
 
@@ -18,6 +18,17 @@ export interface ClerkProfile {
   role: UserRole;
 }
 
+export interface ClerkUserLike {
+  id: string;
+  emailAddresses: Array<{ id: string; emailAddress: string }>;
+  primaryEmailAddressId: string | null;
+  firstName: string | null;
+  lastName: string | null;
+  username: string | null;
+  imageUrl: string;
+  publicMetadata?: Record<string, unknown> | null;
+}
+
 /**
  * Projects a Clerk user onto the local user shape.
  *
@@ -26,7 +37,7 @@ export interface ClerkProfile {
  * designated in the Clerk dashboard, but it is only used when *creating* a local
  * user — see resolveUser() for why Mongo stays authoritative afterwards.
  */
-export function mapClerkUser(clerkUser: ClerkUser): ClerkProfile {
+export function mapClerkUser(clerkUser: ClerkUserLike): ClerkProfile {
   const email =
     clerkUser.emailAddresses.find((e) => e.id === clerkUser.primaryEmailAddressId)?.emailAddress ??
     clerkUser.emailAddresses[0]?.emailAddress;

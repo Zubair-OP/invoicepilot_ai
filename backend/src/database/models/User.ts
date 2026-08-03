@@ -11,6 +11,7 @@ const userSchema = new Schema<UserDocument>(
     company: { type: String, trim: true },
     avatar: { type: String },
     role: { type: String, enum: ["USER", "ADMIN"], default: "USER" },
+    deletedAt: { type: Date },
   },
   { timestamps: true }
 );
