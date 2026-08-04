@@ -16,8 +16,11 @@ const taxComponentSchema = z.object({
 export const createInvoiceSchema = z.object({
   customerId: z.string().min(1, "Customer is required"),
   items: z.array(invoiceItemSchema).min(1, "At least one item is required"),
-  currency: z.string().length(3, "Currency must be 3 letters").default("USD"),
-  taxComponents: z.array(taxComponentSchema).max(5).optional().default([]),
+  // currency / taxComponents / dueDate are optional here and fall back to the
+  // user's settings (Phase 3) when omitted. No .default() — the service needs to
+  // distinguish "omitted" (inherit) from "explicitly set" (override).
+  currency: z.string().length(3, "Currency must be 3 letters").optional(),
+  taxComponents: z.array(taxComponentSchema).max(5).optional(),
   discount: z.number().min(0).optional().default(0),
   notes: z.string().max(1000).optional(),
   dueDate: z.string().optional().refine((val) => !val || !isNaN(Date.parse(val)), "Invalid date"),

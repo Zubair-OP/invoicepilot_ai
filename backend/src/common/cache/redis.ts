@@ -109,6 +109,33 @@ export async function releaseIdempotencyKey(key: string): Promise<void> {
   }
 }
 
+/**
+ * Fixed-window rate limiter keyed by an arbitrary string (use `userId`, not IP —
+ * IP limits are trivially shared and don't map to per-tenant cost). Returns the
+ * current count and whether the request is allowed. Fails open when Redis is
+ * down: a cache outage must not block legitimate work.
+ */
+export async function incrementRateLimit(
+  key: string,
+  limit: number,
+  windowSeconds: number
+): Promise<{ allowed: boolean; count: number; limit: number }> {
+  const redis = await getClient();
+  if (!redis) return { allowed: true, count: 0, limit };
+
+  try {
+    const redisKey = `ratelimit:${key}`;
+    const count = await redis.incr(redisKey);
+    // Set the TTL only on the first hit of the window, so the window doesn't
+    // slide forward on every request.
+    if (count === 1) await redis.expire(redisKey, windowSeconds);
+    return { allowed: count <= limit, count, limit };
+  } catch (error) {
+    markUnavailable(error);
+    return { allowed: true, count: 0, limit };
+  }
+}
+
 export async function closeRedisCache(): Promise<void> {
   if (!client) return;
   await client.quit();

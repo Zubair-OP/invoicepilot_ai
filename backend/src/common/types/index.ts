@@ -38,6 +38,20 @@ export type UserRole = "USER" | "ADMIN";
 
 export type InvoiceStatus = "DRAFT" | "SENT" | "PAID" | "OVERDUE" | "CANCELLED";
 
+// Per-tenant business defaults and invoice appearance. Pure data in Phase 3 —
+// rendering uses `templateId` in Phase 5; the defaults pre-fill new invoices.
+export interface IUserSettings {
+  businessName?: string;
+  businessAddress?: string;
+  taxId?: string;                        // GSTIN / VAT number
+  logoUrl?: string;
+  defaultCurrency: string;               // default "USD"
+  defaultPaymentTermsDays: number;       // default 30
+  defaultTaxComponents: ITaxComponent[]; // pre-fill new invoices
+  invoicePrefix: string;                 // default "INV"
+  templateId: string;                    // default "classic"
+}
+
 export interface IUser {
   _id: mongoose.Types.ObjectId;
   clerkId: string;
@@ -46,6 +60,7 @@ export interface IUser {
   company?: string;
   avatar?: string;
   role: UserRole;
+  settings: IUserSettings;
   deletedAt?: Date;
   createdAt: Date;
   updatedAt: Date;

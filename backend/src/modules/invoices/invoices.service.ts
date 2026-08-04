@@ -1,4 +1,4 @@
-import { Invoice } from "../../database/models/index.js";
+import { Invoice, User } from "../../database/models/index.js";
 import { NotFoundError, ConflictError } from "../../common/errors/index.js";
 import type { CreateInvoiceInput, UpdateInvoiceInput } from "./invoices.validation.js";
 import type { PaginationParams, ITaxComponent } from "../../common/types/index.js";
@@ -59,8 +59,19 @@ export async function getById(userId: string, invoiceId: string) {
 
 export async function create(userId: string, data: CreateInvoiceInput) {
   const { items, taxComponents, discount = 0, dueDate, issuedAt, ...rest } = data;
-  const totals = computeTotals(items, taxComponents, discount);
-  const invoiceNumber = await generateInvoiceNumber(userId);
+
+  // Fall back to the tenant's settings for anything the request omits. Explicit
+  // request values always win; `??` treats only `undefined` (omitted) as "inherit",
+  // so an explicit `[]` for taxComponents still means "no tax".
+  const settings = await getUserSettings(userId);
+  const currency = rest.currency ?? settings.defaultCurrency;
+  const resolvedTaxComponents = taxComponents ?? settings.defaultTaxComponents;
+  const resolvedDueDate = dueDate
+    ? new Date(dueDate)
+    : new Date(Date.now() + settings.defaultPaymentTermsDays * 24 * 60 * 60 * 1000);
+
+  const totals = computeTotals(items, resolvedTaxComponents, discount);
+  const invoiceNumber = await generateInvoiceNumber(userId, settings.invoicePrefix);
 
   try {
     return await Invoice.create({
@@ -69,9 +80,9 @@ export async function create(userId: string, data: CreateInvoiceInput) {
       invoiceNumber,
       ...totals,
       discount,
-      currency: rest.currency,
+      currency,
       notes: rest.notes,
-      dueDate: dueDate ? new Date(dueDate) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      dueDate: resolvedDueDate,
       issuedAt: issuedAt ? new Date(issuedAt) : new Date(),
       items: items.map((item) => ({
         description: item.description,
@@ -86,6 +97,26 @@ export async function create(userId: string, data: CreateInvoiceInput) {
     }
     throw error;
   }
+}
+
+/**
+ * Loads the tenant's invoice defaults. Returns hardcoded fallbacks if the user
+ * or settings are somehow absent, so invoice creation never fails purely because
+ * settings could not be read.
+ */
+async function getUserSettings(userId: string) {
+  const user = await User.findOne({ _id: userId, deletedAt: { $exists: false } })
+    .select("settings")
+    .lean();
+  return (
+    user?.settings ?? {
+      defaultCurrency: "USD",
+      defaultPaymentTermsDays: 30,
+      defaultTaxComponents: [] as ITaxComponent[],
+      invoicePrefix: "INV",
+      templateId: "classic",
+    }
+  );
 }
 
 export async function update(userId: string, invoiceId: string, data: UpdateInvoiceInput) {

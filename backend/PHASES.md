@@ -30,9 +30,11 @@ inherits.
 | Phase | Scope | Status |
 |---|---|---|
 | 1 | Foundation repair | ✅ Done |
-| 2 | Clerk webhooks + user sync + admin routes | ⬜ Next |
-| 3 | Invoice templates + settings | ⬜ |
-| 4 | AI invoice generation | ⬜ |
+| 2 | Clerk webhooks + user sync + admin routes | ✅ Done |
+| 3 | Invoice templates + settings | ✅ Done |
+| 4 | AI invoice generation | ✅ Done |
+| 5 | PDF generation | ✅ Done |
+| 6 | Email delivery | ⬜ Next |
 | 5 | PDF generation | ⬜ |
 | 6 | Email delivery | ⬜ |
 | 7 | Reminder automation | ⬜ |

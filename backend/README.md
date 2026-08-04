@@ -2,7 +2,7 @@
 
 AI-powered invoice management and payment reminder platform.
 
-**Status:** Phase 1 complete. Phases 2–10 pending — see [PHASES.md](./PHASES.md).
+**Status:** Phases 1–5 complete. Phases 6–10 pending — see [PHASES.md](./PHASES.md).
 
 ---
 
@@ -32,6 +32,7 @@ writable filesystem, neither of which serverless provides.
 
 ```bash
 npm install
+npx playwright install chromium   # required for PDF generation (Phase 5)
 cp .env.example .env      # then fill in real values
 npm run db:seed           # optional: demo tenant + sample invoice
 npm run dev               # http://localhost:5000
@@ -224,6 +225,9 @@ All routes require `Authorization: Bearer <clerk_session_token>`.
 | `GET` | `/health` | Public liveness probe |
 | `GET` | `/api/v1/users/me` | Current profile |
 | `PATCH` | `/api/v1/users/me` | Update name / company / avatar |
+| `GET` | `/api/v1/settings` | Current tenant's invoice defaults + appearance |
+| `PATCH` | `/api/v1/settings` | Update business defaults, prefix, template |
+| `GET` | `/api/v1/templates` | List available invoice templates |
 | `GET` | `/api/v1/admin/users` | ADMIN only. Paginated, `?search=`, `?role=` |
 | `GET` | `/api/v1/admin/users/:id` | ADMIN only. User plus invoice/customer counts |
 | `PATCH` | `/api/v1/admin/users/:id/role` | ADMIN only. Promote/demote with audit log |
@@ -239,6 +243,10 @@ All routes require `Authorization: Bearer <clerk_session_token>`.
 | `DELETE` | `/api/v1/invoices/:id` | Blocked on PAID |
 | `PATCH` | `/api/v1/invoices/:id/send` | DRAFT → SENT |
 | `PATCH` | `/api/v1/invoices/:id/pay` | → PAID |
+| `GET` | `/api/v1/invoices/:id/pdf` | Download PDF (`Content-Disposition: attachment`) |
+| `GET` | `/api/v1/invoices/:id/preview` | Rendered HTML (print / debugging) |
+| `POST` | `/api/v1/ai/generate-invoice` | Prompt → validated draft invoice data |
+| `POST` | `/api/v1/ai/chat` | Multi-turn refinement |
 | `POST` | `/webhooks/clerk` | Raw body, Svix signature-verified |
 | `POST` | `/webhooks/stripe` | Raw body, signature-verified |
 
@@ -272,6 +280,85 @@ Administrative role changes write an `ActivityLog` row:
 ```
 
 Activity logging is best-effort: failures are logged to Pino and never fail the request.
+
+### Settings & templates
+
+Each user carries a `settings` subdocument (populated by schema defaults) holding
+business defaults and invoice appearance:
+
+```jsonc
+{
+  "businessName": "InvoicePilot Demo",
+  "businessAddress": "…",
+  "taxId": "…",                 // GSTIN / VAT number
+  "logoUrl": "…",
+  "defaultCurrency": "USD",
+  "defaultPaymentTermsDays": 30,
+  "defaultTaxComponents": [{ "name": "VAT", "rate": 20 }],
+  "invoicePrefix": "INV",
+  "templateId": "classic"
+}
+```
+
+`GET /api/v1/settings` returns it; `PATCH /api/v1/settings` updates individual
+fields (the request is `strict` — unknown keys are rejected). `role`/`email` are not
+part of settings and cannot be changed here.
+
+Templates ship with the code as a server-side constant
+(`modules/templates/templates.registry.ts`), not a DB collection — `classic`,
+`modern`, `minimal`. `GET /api/v1/templates` lists them, and `templateId` is validated
+against the registry on write (unknown id → 422). Phase 5 renders each to PDF.
+
+**Invoice creation inherits settings.** When `POST /invoices` omits `currency`,
+`taxComponents`, or `dueDate`, the service falls back to the user's
+`defaultCurrency`, `defaultTaxComponents`, and `defaultPaymentTermsDays`
+respectively. Explicit request values always win (an explicit `taxComponents: []`
+means "no tax", not "inherit"). `generateInvoiceNumber()` takes the tenant's
+`invoicePrefix`; the counter key is prefix-independent, so changing the prefix
+renames new invoices without resetting the sequence.
+
+### AI invoice generation
+
+`POST /api/v1/ai/generate-invoice` turns a plain-language description into a
+validated **draft** — it is not persisted. The client reviews it and then calls
+`POST /invoices` normally, keeping AI out of the write path so a bad generation
+costs nothing. `POST /api/v1/ai/chat` supports multi-turn refinement.
+
+Guard rails:
+
+- **Structured output.** Groq JSON mode returns parseable JSON; every response is
+  still parsed through a Zod schema (`ai.validation.ts`). On validation failure the
+  service retries once with the error appended to the prompt, then fails with a 422
+  — never returns unvalidated model output.
+- **The model never determines money.** It proposes only tax `name`/`rate`; the
+  invoice service recomputes every `amount`, `subtotal`, and `total` server-side.
+- **Customer resolution.** The customer name is fuzzy-matched (case-insensitive,
+  scoped by `userId`) against existing customers. Returns a matched `customerId` or
+  a `suggestedCustomer` for the client to confirm — it never auto-creates a customer.
+- **Rate limit** 10 requests/hour/user, Redis-backed and keyed by `userId` (not IP).
+  Returns 429 when exceeded. Prompt capped at 2000 chars; Groq call has a 30s timeout.
+- The prompt is **untrusted** — it never influences auth, tenancy, or pricing.
+- Returns **503** when `GROQ_API_KEY` is unset, rather than crashing.
+
+### PDF generation
+
+`GET /api/v1/invoices/:id/pdf` streams a PDF (`Content-Disposition: attachment`);
+`GET /api/v1/invoices/:id/preview` returns the rendered HTML. Both enforce
+ownership via `{ _id, userId }`, so requesting another tenant's invoice returns 404.
+
+- **HTML → Playwright → PDF.** Templates are functions returning HTML strings
+  (`modules/pdf/templates/`), one per Phase 3 registry entry (`classic`, `modern`,
+  `minimal`), chosen from the user's `settings.templateId`.
+- **One shared browser** launched lazily on first render and closed in the SIGTERM
+  handler — not relaunched per request.
+- **Every interpolated value is escaped** (customer names, notes, business names are
+  user-controlled). No network fetches during render (`setContent` + inline CSS).
+- **Generated on demand, never stored** — regeneration is cheap and always current.
+- Concurrency capped at 3 simultaneous renders (Playwright is memory-heavy); further
+  requests queue. 15s render timeout.
+
+> **Deployment:** requires `npx playwright install chromium` (documented postinstall
+> step). The persistent-host requirement in the tech-stack table exists partly for this.
 
 ---
 

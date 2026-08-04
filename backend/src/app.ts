@@ -10,12 +10,16 @@ import { requestId } from "./common/middlewares/requestId.js";
 import { errorHandler, notFoundHandler } from "./common/middlewares/errorHandler.js";
 import { logger } from "./observability/logger.js";
 import { closeRedisCache } from "./common/cache/redis.js";
+import { closeBrowser } from "./modules/pdf/index.js";
 
 import { usersRoutes } from "./modules/users/index.js";
 import { customersRoutes } from "./modules/customers/index.js";
 import { invoicesRoutes } from "./modules/invoices/index.js";
 import { webhooksRoutes } from "./modules/webhooks/index.js";
 import { adminRoutes } from "./modules/admin/index.js";
+import { settingsRoutes } from "./modules/settings/index.js";
+import { templatesRoutes } from "./modules/templates/index.js";
+import { aiRoutes } from "./modules/ai/index.js";
 import healthRoutes from "./health/health.routes.js";
 
 const app = express();
@@ -48,6 +52,9 @@ app.use(`${env.API_PREFIX}/users`, usersRoutes);
 app.use(`${env.API_PREFIX}/customers`, customersRoutes);
 app.use(`${env.API_PREFIX}/invoices`, invoicesRoutes);
 app.use(`${env.API_PREFIX}/admin`, adminRoutes);
+app.use(`${env.API_PREFIX}/settings`, settingsRoutes);
+app.use(`${env.API_PREFIX}/templates`, templatesRoutes);
+app.use(`${env.API_PREFIX}/ai`, aiRoutes);
 
 app.use(notFoundHandler);
 app.use(errorHandler);
@@ -67,6 +74,7 @@ main().catch((err) => {
 
 process.on("SIGTERM", async () => {
   logger.info("SIGTERM received, shutting down...");
+  await closeBrowser();
   await closeRedisCache();
   await disconnectDatabase();
   process.exit(0);
