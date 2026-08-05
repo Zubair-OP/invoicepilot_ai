@@ -50,6 +50,7 @@ export interface IUserSettings {
   defaultTaxComponents: ITaxComponent[]; // pre-fill new invoices
   invoicePrefix: string;                 // default "INV"
   templateId: string;                    // default "classic"
+  reminders?: IReminderSettings;         // dunning schedule (Phase 7) — schema-defaulted
 }
 
 export interface IUser {
@@ -105,6 +106,39 @@ export interface ITaxComponent {
   amount: number; // computed: subtotal * rate / 100
 }
 
+// Kind of email dispatched for an invoice. Kept as a string union so the
+// delivery history and the template registry stay in sync.
+export type EmailType = "invoice" | "reminder" | "payment_received";
+
+// A reminder milestone label, derived from the configured day-offset relative to
+// `dueDate` — e.g. offset -3 → "upcoming_3", offset +7 → "overdue_7", offset 0 →
+// "due". `manual` covers an ad-hoc reminder triggered from the API. It is an open
+// string (not a closed union) because offsets are user-configurable. Recording
+// the label is what guarantees a milestone never dunning-emails a customer twice.
+export type ReminderType = string;
+
+// One entry per reminder actually sent. Append-only, like `emailsSent`, but
+// scoped to dunning so the sweep can ask "has this milestone fired?" cheaply.
+export interface IReminderSent {
+  type: ReminderType;
+  sentAt: Date;
+}
+
+// Per-tenant dunning configuration. Offsets are days relative to `dueDate`:
+// negative = before due (upcoming), positive = after due (overdue).
+export interface IReminderSettings {
+  enabled: boolean;
+  offsets: number[];
+}
+
+// One entry per successful send — a lightweight audit trail on the invoice so a
+// resend, reminder, or receipt is visible without querying ActivityLog.
+export interface IEmailSent {
+  to: string;
+  sentAt: Date;
+  type: EmailType;
+}
+
 export interface IInvoice {
   _id: mongoose.Types.ObjectId;
   userId: mongoose.Types.ObjectId | string;
@@ -122,6 +156,9 @@ export interface IInvoice {
   issuedAt: Date;
   dueDate: Date;
   paidAt?: Date;
+  emailsSent: IEmailSent[];
+  remindersSent: IReminderSent[];   // dunning milestones already fired (Phase 7)
+  lastReminderAt?: Date;            // when the most recent reminder was sent
   createdAt: Date;
   updatedAt: Date;
 }

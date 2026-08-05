@@ -2,7 +2,7 @@
 
 AI-powered invoice management and payment reminder platform.
 
-**Status:** Phases 1–5 complete. Phases 6–10 pending — see [PHASES.md](./PHASES.md).
+**Status:** Phases 1–6 complete. Phases 7–10 pending — see [PHASES.md](./PHASES.md).
 
 ---
 
@@ -245,6 +245,8 @@ All routes require `Authorization: Bearer <clerk_session_token>`.
 | `PATCH` | `/api/v1/invoices/:id/pay` | → PAID |
 | `GET` | `/api/v1/invoices/:id/pdf` | Download PDF (`Content-Disposition: attachment`) |
 | `GET` | `/api/v1/invoices/:id/preview` | Rendered HTML (print / debugging) |
+| `POST` | `/api/v1/invoices/:id/send-email` | Queue invoice for email delivery (Phase 6) |
+| `POST` | `/api/v1/invoices/:id/remind` | Queue an ad-hoc reminder, rate limited per invoice (Phase 7) |
 | `POST` | `/api/v1/ai/generate-invoice` | Prompt → validated draft invoice data |
 | `POST` | `/api/v1/ai/chat` | Multi-turn refinement |
 | `POST` | `/webhooks/clerk` | Raw body, Svix signature-verified |
@@ -359,6 +361,61 @@ ownership via `{ _id, userId }`, so requesting another tenant's invoice returns 
 
 > **Deployment:** requires `npx playwright install chromium` (documented postinstall
 > step). The persistent-host requirement in the tech-stack table exists partly for this.
+
+### Email delivery
+
+`POST /api/v1/invoices/:id/send-email` sends the invoice (with its PDF attached)
+to the customer. Body is optional — `{ to?, subject?, message? }` — and defaults
+the recipient to the customer's email. Ownership is enforced via `{ _id, userId }`,
+so another tenant's invoice returns 404.
+
+- **Asynchronous, via BullMQ.** The route validates ownership, resolves the
+  recipient, enqueues an `email` job, and returns **202 Accepted** immediately.
+  The PDF render + provider call happen in a worker, so a slow render never blocks
+  the request. Enqueuing an invoice with no resolvable recipient returns **422**.
+- **Retry with backoff.** Jobs retry 3× with exponential backoff (5s base), so a
+  transient Resend blip or cold Playwright render recovers without operator action.
+- **Idempotent sends.** The job id is derived from `invoice + type + recipient`.
+  A rapid double-submit is de-duplicated while the job is queued/active; a
+  deliberate later resend is allowed once the prior job completes and is removed.
+- **On success:** a `DRAFT` invoice transitions to `SENT` (initial invoice sends
+  only — reminders/receipts don't change status), an entry is appended to the
+  invoice's `emailsSent: [{ to, sentAt, type }]` delivery log, and an
+  `INVOICE_EMAIL_SENT` `ActivityLog` row is written (best-effort).
+- **Templates** live in `integrations/email/templates/` (`invoiceEmail`,
+  `reminderEmail`, `paymentReceivedEmail`), returning `{ subject, html, text }`.
+  All CSS is inline (clients strip `<style>`), every interpolated value is
+  escaped, and a plain-text fallback accompanies every HTML body.
+- **No key, no send.** When `RESEND_API_KEY` is unset, sends are logged and
+  skipped rather than throwing — local dev and CI work without a real provider.
+  `EMAIL_FROM` must be on a Resend-verified domain in production.
+
+> **Worker process:** Phase 7 runs workers (email delivery + the daily reminder
+> sweep) in a **dedicated process** (`jobs/worker.ts`, `npm run worker`), separate
+> from the API. Both processes must run in production; in dev run `npm run worker`
+> alongside `npm run dev`. A crash in a job never takes down the HTTP server, and
+> the two scale independently. Redis is required for sending/reminders — the queue
+> cannot enqueue without it (unlike the cache layer, which fails open).
+
+### Reminder automation
+
+`POST /api/v1/invoices/:id/remind` queues an ad-hoc reminder for one invoice
+(ownership, status eligibility, and a per-invoice rate limit are enforced in the
+service; responds **202**). Automated dunning runs via a BullMQ Job Scheduler
+registered in the worker process (`jobs/scheduler.ts`, cron `0 8 * * *` UTC):
+`processReminderSweep()` first flips issued-but-unpaid invoices past their due
+date to `OVERDUE`, then queues at most one due reminder per active invoice.
+
+- **Schedule** defaults to `[-3, 1, 7, 14]` days relative to `dueDate`
+  (0 = due date). Per-tenant via `settings.reminders` (Phase 3); `enabled: false`
+  pauses automated reminders. All date math is in UTC — no DST/clock-skew drift.
+- **Send-once guaranteed.** Each reminder milestone is recorded in the invoice's
+  `remindersSent` with an atomic guarded update *before* the email is enqueued, so
+  a crash never produces a duplicate dunning email. A `PAID`/`CANCELLED` invoice and
+  customers with no email are skipped (logged, never failing the run).
+- **Batched, idempotent.** The sweep streams invoices via a cursor (flat memory)
+  using the `{ status: 1, dueDate: 1 }` index; running it twice in a day sends
+  nothing the second time.
 
 ---
 

@@ -1,5 +1,5 @@
 import mongoose, { Schema, Document } from "mongoose";
-import type { IUser, IUserSettings, ITaxComponent } from "../../common/types/index.js";
+import type { IUser, IUserSettings, ITaxComponent, IReminderSettings } from "../../common/types/index.js";
 
 export type UserDocument = IUser & Document;
 
@@ -10,6 +10,18 @@ const settingsTaxComponentSchema = new Schema<ITaxComponent>(
     name: { type: String, required: true, trim: true },
     rate: { type: Number, required: true, min: 0, max: 100 },
     amount: { type: Number, default: 0, min: 0 },
+  },
+  { _id: false }
+);
+
+// Dunning schedule. `offsets` are whole days relative to an invoice's `dueDate`:
+// negative = before due (upcoming reminder), positive = after due (overdue).
+// Defaults fire 3 days before, then 1, 7, and 14 days past due. `enabled: false`
+// pauses all automated reminders for the tenant (manual sends still work).
+const reminderSettingsSchema = new Schema<IReminderSettings>(
+  {
+    enabled: { type: Boolean, default: true },
+    offsets: { type: [Number], default: [-3, 1, 7, 14] },
   },
   { _id: false }
 );
@@ -28,6 +40,7 @@ const settingsSchema = new Schema<IUserSettings>(
     defaultTaxComponents: { type: [settingsTaxComponentSchema], default: [] },
     invoicePrefix: { type: String, default: "INV", uppercase: true, trim: true },
     templateId: { type: String, default: "classic", trim: true },
+    reminders: { type: reminderSettingsSchema, default: () => ({}) },
   },
   { _id: false }
 );

@@ -1,5 +1,11 @@
 import mongoose, { Schema, Document } from "mongoose";
-import type { IInvoice, IInvoiceItem, ITaxComponent } from "../../common/types/index.js";
+import type {
+  IInvoice,
+  IInvoiceItem,
+  ITaxComponent,
+  IEmailSent,
+  IReminderSent,
+} from "../../common/types/index.js";
 
 export type InvoiceDocument = IInvoice & Document;
 
@@ -25,6 +31,33 @@ const taxComponentSchema = new Schema<ITaxComponent>(
   { _id: false }
 );
 
+// Append-only delivery log: one entry per successful send. Lets the UI show
+// "last sent" and guards against a resend appearing to have never happened.
+const emailSentSchema = new Schema<IEmailSent>(
+  {
+    to: { type: String, required: true, trim: true },
+    sentAt: { type: Date, default: Date.now },
+    type: {
+      type: String,
+      enum: ["invoice", "reminder", "payment_received"],
+      required: true,
+    },
+  },
+  { _id: false }
+);
+
+// Append-only dunning log: one entry per reminder milestone actually sent. The
+// sweep checks this before sending so a customer is never dunned twice for the
+// same milestone — duplicate reminder emails are the worst possible bug here.
+// `type` is free-form (offsets are user-configurable), so no enum constraint.
+const reminderSentSchema = new Schema<IReminderSent>(
+  {
+    type: { type: String, required: true, trim: true },
+    sentAt: { type: Date, default: Date.now },
+  },
+  { _id: false }
+);
+
 const invoiceSchema = new Schema<InvoiceDocument>(
   {
     userId: { type: Schema.Types.ObjectId, ref: "User", required: true },
@@ -46,6 +79,9 @@ const invoiceSchema = new Schema<InvoiceDocument>(
     issuedAt: { type: Date, default: Date.now },
     dueDate: { type: Date, required: true },
     paidAt: { type: Date },
+    emailsSent: { type: [emailSentSchema], default: [] },
+    remindersSent: { type: [reminderSentSchema], default: [] },
+    lastReminderAt: { type: Date },
   },
   { timestamps: true }
 );

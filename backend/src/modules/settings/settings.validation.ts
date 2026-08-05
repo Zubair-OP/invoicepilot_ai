@@ -8,6 +8,20 @@ const taxComponentSchema = z.object({
   rate: z.number().min(0).max(100),
 });
 
+// Dunning schedule. Offsets are whole days relative to `dueDate` (negative =
+// before due, positive = after). Bounded to a sane window so a typo can't
+// schedule a reminder years out, de-duplicated, and capped so the sweep never
+// fans out unbounded per invoice. `reminders` replaces the whole subdocument
+// when present, so both fields are required together here.
+const reminderSettingsSchema = z.object({
+  enabled: z.boolean(),
+  offsets: z
+    .array(z.number().int().min(-90).max(365))
+    .min(1, "At least one offset is required")
+    .max(10, "At most 10 offsets")
+    .refine((offsets) => new Set(offsets).size === offsets.length, "Offsets must be unique"),
+});
+
 // Every field is optional so PATCH can update a single setting. templateId is
 // validated against the shipped registry, so an unknown id fails here as a 422
 // rather than being stored and breaking rendering in Phase 5.
@@ -25,6 +39,7 @@ export const updateSettingsSchema = z
       .string()
       .refine(isValidTemplateId, "Unknown template")
       .optional(),
+    reminders: reminderSettingsSchema.optional(),
   })
   .strict();
 

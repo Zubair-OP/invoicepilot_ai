@@ -34,10 +34,8 @@ inherits.
 | 3 | Invoice templates + settings | ✅ Done |
 | 4 | AI invoice generation | ✅ Done |
 | 5 | PDF generation | ✅ Done |
-| 6 | Email delivery | ⬜ Next |
-| 5 | PDF generation | ⬜ |
-| 6 | Email delivery | ⬜ |
-| 7 | Reminder automation | ⬜ |
+| 6 | Email delivery | ✅ Done |
+| 7 | Reminder automation | ✅ Done |
 | 8 | Billing + plan limits | ⬜ |
 | 9 | Dashboard + analytics | ⬜ |
 | 10 | Security hardening + docs | ⬜ |

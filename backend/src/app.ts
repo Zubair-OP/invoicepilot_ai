@@ -11,6 +11,7 @@ import { errorHandler, notFoundHandler } from "./common/middlewares/errorHandler
 import { logger } from "./observability/logger.js";
 import { closeRedisCache } from "./common/cache/redis.js";
 import { closeBrowser } from "./modules/pdf/index.js";
+import { closeQueues } from "./jobs/queues.js";
 
 import { usersRoutes } from "./modules/users/index.js";
 import { customersRoutes } from "./modules/customers/index.js";
@@ -62,6 +63,10 @@ app.use(errorHandler);
 async function main() {
   await connectDatabase();
 
+  // Phase 7: workers (email + reminder sweep) run in the dedicated worker
+  // process (jobs/worker.ts, `npm run worker`), not the API. Both processes
+  // must run in production — see README. In dev, run `npm run worker` alongside
+  // `npm run dev` to deliver emails and the daily reminder sweep.
   app.listen(env.PORT, () => {
     logger.info(`Server running on port ${env.PORT} in ${env.NODE_ENV} mode`);
   });
@@ -74,6 +79,7 @@ main().catch((err) => {
 
 process.on("SIGTERM", async () => {
   logger.info("SIGTERM received, shutting down...");
+  await closeQueues();
   await closeBrowser();
   await closeRedisCache();
   await disconnectDatabase();
