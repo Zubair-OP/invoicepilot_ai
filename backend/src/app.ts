@@ -21,6 +21,7 @@ import { adminRoutes } from "./modules/admin/index.js";
 import { settingsRoutes } from "./modules/settings/index.js";
 import { templatesRoutes } from "./modules/templates/index.js";
 import { aiRoutes } from "./modules/ai/index.js";
+import { billingRoutes, seedPlans } from "./modules/billing/index.js";
 import healthRoutes from "./health/health.routes.js";
 
 const app = express();
@@ -56,12 +57,14 @@ app.use(`${env.API_PREFIX}/admin`, adminRoutes);
 app.use(`${env.API_PREFIX}/settings`, settingsRoutes);
 app.use(`${env.API_PREFIX}/templates`, templatesRoutes);
 app.use(`${env.API_PREFIX}/ai`, aiRoutes);
+app.use(`${env.API_PREFIX}/billing`, billingRoutes);
 
 app.use(notFoundHandler);
 app.use(errorHandler);
 
 async function main() {
   await connectDatabase();
+  await seedPlans();
 
   // Phase 7: workers (email + reminder sweep) run in the dedicated worker
   // process (jobs/worker.ts, `npm run worker`), not the API. Both processes

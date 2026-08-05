@@ -62,9 +62,32 @@ export interface IUser {
   avatar?: string;
   role: UserRole;
   settings: IUserSettings;
+  subscription: IUserSubscription;
   deletedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
+}
+
+// ─── Billing / plan limits (Phase 8) ─────────────────────
+export type PlanKey = "free" | "pro" | "business";
+
+export type SubscriptionStatus = "active" | "past_due" | "canceled" | "trialing";
+
+// The resource keys that usage is tracked for. Names mirror the plan `limits`
+// fields so a plan lookup and a usage lookup share one vocabulary.
+export type PlanLimitResource = "invoicesPerMonth" | "customers" | "aiGenerationsPerMonth";
+
+// Per-tenant subscription state. `planKey` defaults to "free"; `currentPeriodStart`
+// marks the current billing period's start so usage is counted per Stripe period
+// (not calendar month). Free accounts have no Stripe period, so their usage window
+// falls back to the start of the current month in `billing.limits`.
+export interface IUserSubscription {
+  planKey: PlanKey;              // default "free"
+  stripeCustomerId?: string;     // Stripe customer_xxx
+  stripeSubscriptionId?: string; // Stripe sub_xxx
+  status: SubscriptionStatus;    // default "active"
+  currentPeriodStart?: Date;
+  currentPeriodEnd?: Date;
 }
 
 export interface IActivityLog {

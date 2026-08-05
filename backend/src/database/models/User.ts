@@ -1,5 +1,5 @@
 import mongoose, { Schema, Document } from "mongoose";
-import type { IUser, IUserSettings, ITaxComponent, IReminderSettings } from "../../common/types/index.js";
+import type { IUser, IUserSettings, ITaxComponent, IReminderSettings, IUserSubscription } from "../../common/types/index.js";
 
 export type UserDocument = IUser & Document;
 
@@ -45,6 +45,21 @@ const settingsSchema = new Schema<IUserSettings>(
   { _id: false }
 );
 
+// Billing state (Phase 8). Defaults to the free plan; `currentPeriodStart` is set
+// from Stripe so usage counts run on the subscription period, not the calendar
+// month. Default status is "active" so a brand-new free account is never blocked.
+const subscriptionSchema = new Schema<IUserSubscription>(
+  {
+    planKey: { type: String, enum: ["free", "pro", "business"], default: "free" },
+    stripeCustomerId: { type: String, trim: true },
+    stripeSubscriptionId: { type: String, trim: true },
+    status: { type: String, enum: ["active", "past_due", "canceled", "trialing"], default: "active" },
+    currentPeriodStart: { type: Date },
+    currentPeriodEnd: { type: Date },
+  },
+  { _id: false }
+);
+
 const userSchema = new Schema<UserDocument>(
   {
     clerkId: { type: String, required: true, unique: true, index: true },
@@ -54,6 +69,7 @@ const userSchema = new Schema<UserDocument>(
     avatar: { type: String },
     role: { type: String, enum: ["USER", "ADMIN"], default: "USER" },
     settings: { type: settingsSchema, default: () => ({}) },
+    subscription: { type: subscriptionSchema, default: () => ({}) },
     deletedAt: { type: Date },
   },
   { timestamps: true }

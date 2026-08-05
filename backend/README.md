@@ -2,7 +2,7 @@
 
 AI-powered invoice management and payment reminder platform.
 
-**Status:** Phases 1–6 complete. Phases 7–10 pending — see [PHASES.md](./PHASES.md).
+**Status:** Phases 1–8 complete. Phases 9–10 pending — see [PHASES.md](./PHASES.md).
 
 ---
 
@@ -249,6 +249,10 @@ All routes require `Authorization: Bearer <clerk_session_token>`.
 | `POST` | `/api/v1/invoices/:id/remind` | Queue an ad-hoc reminder, rate limited per invoice (Phase 7) |
 | `POST` | `/api/v1/ai/generate-invoice` | Prompt → validated draft invoice data |
 | `POST` | `/api/v1/ai/chat` | Multi-turn refinement |
+| `GET` | `/api/v1/billing/plans` | Public plan catalogue (no auth) |
+| `GET` | `/api/v1/billing/subscription` | Current plan + period usage/limits |
+| `POST` | `/api/v1/billing/checkout` | Stripe Checkout session for a plan (`{ planKey }`) |
+| `POST` | `/api/v1/billing/portal` | Stripe Billing Portal link |
 | `POST` | `/webhooks/clerk` | Raw body, Svix signature-verified |
 | `POST` | `/webhooks/stripe` | Raw body, signature-verified |
 
@@ -416,6 +420,54 @@ date to `OVERDUE`, then queues at most one due reminder per active invoice.
 - **Batched, idempotent.** The sweep streams invoices via a cursor (flat memory)
   using the `{ status: 1, dueDate: 1 }` index; running it twice in a day sends
   nothing the second time.
+
+### Billing & plan limits
+
+Phase 8 turns the app into a SaaS. Plans ship with the code in
+`modules/billing/plans.registry.ts` (the single source of truth for limits), and a
+`Plan` Mongo model is seeded from it at boot (`seedPlans()`). **The registry is
+what enforcement reads** — a missing/unseeded plan document can never block work.
+
+| Plan | Invoices/mo | Customers | AI/mo | Templates | Price |
+|---|---|---|---|---|---|
+| `free` | 5 | 10 | 10 | `classic` | $0 |
+| `pro` | 100 | unlimited | 200 | all | $12/mo |
+| `business` | unlimited | unlimited | unlimited | all | $29/mo |
+
+- **`User.subscription`** (`planKey` default `free`, `status`, `stripeCustomerId`,
+  `stripeSubscriptionId`, `currentPeriodStart`, `currentPeriodEnd`). Default
+  status is `active` so a new free account is never blocked.
+- **Enforcement.** `enforcePlanLimit(resource)` middleware on invoice creation,
+  customer creation, and AI generation (both `generate-invoice` and `chat`).
+  When a tenant is at their cap the request fails with **402
+  `PLAN_LIMIT_EXCEEDED`** and `details: { resource, limit, usage, planKey }` so
+  the client can show an upgrade prompt. `GET /templates` is also filtered by the
+  tenant's `templatesAllowed` (free sees only `classic`).
+- **Usage windows follow the billing period, not the calendar month.** For an
+  active subscription the count starts at `subscription.currentPeriodStart`;
+  free / expired accounts fall back to the start of the current month (UTC).
+  Counts for invoices and customers are exact Mongo `countDocuments` reads
+  cached in Redis (TTL 10 min) and **invalidated on create**. AI usage has no
+  durable document, so it is a Redis counter for the period.
+- **Stripe webhooks.** `POST /webhooks/stripe` now handles `checkout.session.completed`
+  (subscription + invoice-payment modes), `customer.subscription.created/updated/deleted`,
+  and `invoice.payment_failed`, in addition to the pre-existing
+  `payment_intent.payment_failed` logging. Idempotent per Stripe event id
+  (Redis, 24h TTL) — replayed deliveries are no-ops. `invoice.payment_failed`
+  flips the subscription to `past_due` and emails the subscriber
+  (`paymentFailedEmail` template; best-effort, never fails the webhook ack).
+- **Downgrade/cancellation never destroys data.** Deleting a subscription drops
+  the tenant back to the `free` plan (blocking new records over the cap) but
+  keeps all existing invoices and customers intact.
+- **Checkout & portal.** `POST /billing/checkout` creates a subscription Checkout
+  session (reusing/provisioning the Stripe customer), `POST /billing/portal`
+  returns a Billing Portal link. Both need `STRIPE_SECRET_KEY` (503 otherwise)
+  and a `stripePriceId` on the plan.
+
+> **Config:** `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` (endpoint
+> `POST /webhooks/stripe`), and each paid plan's `stripePriceId` come from your
+> Stripe dashboard — fill the price ids into `plans.registry.ts`. The SDK's
+> pinned API version (`2025-02-24.acacia`) was verified against `stripe@17.7.0`.
 
 ---
 

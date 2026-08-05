@@ -4,6 +4,7 @@ import type { CreateCustomerInput, UpdateCustomerInput } from "./customers.valid
 import type { PaginationParams, ICustomer, IInvoice } from "../../common/types/index.js";
 import { getSkipTake, buildPaginationMeta } from "../../common/utils/pagination.js";
 import { paginatedResponse } from "../../common/response.js";
+import { recordUsage } from "../billing/index.js";
 
 /** Subset of invoice fields shown in a customer's recent-activity list. */
 type RecentInvoice = Pick<IInvoice, "_id" | "invoiceNumber" | "total" | "status" | "issuedAt">;
@@ -44,7 +45,10 @@ export async function getById(userId: string, customerId: string): Promise<Custo
 }
 
 export async function create(userId: string, data: CreateCustomerInput) {
-  return Customer.create({ ...data, userId });
+  const customer = await Customer.create({ ...data, userId });
+  // Best-effort: bump the tenant's period usage; must not fail the create.
+  await recordUsage("customers", userId);
+  return customer;
 }
 
 export async function update(userId: string, customerId: string, data: UpdateCustomerInput) {

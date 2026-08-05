@@ -136,6 +136,61 @@ export async function incrementRateLimit(
   }
 }
 
+// ─── Generic integer cache (used for plan-usage counts) ──
+// Keys are fully formed by the caller (e.g. billing/limits). All helpers fail
+// open when Redis is down so a cache outage never blocks billing enforcement or
+// creation — the DB recount reconciles on the next cache miss.
+
+export async function cacheGetInt(key: string): Promise<number | null> {
+  const redis = await getClient();
+  if (!redis) return null;
+
+  try {
+    const value = await redis.get(key);
+    return value === null ? null : Number(value);
+  } catch (error) {
+    markUnavailable(error);
+    return null;
+  }
+}
+
+export async function cacheSetInt(key: string, value: number, ttlSeconds: number): Promise<void> {
+  const redis = await getClient();
+  if (!redis) return;
+
+  try {
+    await redis.set(key, value, "EX", ttlSeconds);
+  } catch (error) {
+    markUnavailable(error);
+  }
+}
+
+export async function cacheDelete(key: string): Promise<void> {
+  const redis = await getClient();
+  if (!redis) return;
+
+  try {
+    await redis.del(key);
+  } catch (error) {
+    markUnavailable(error);
+  }
+}
+
+/** Atomically increments a Redis integer (returns the new value). */
+export async function cacheIncrement(key: string, ttlSeconds: number): Promise<number> {
+  const redis = await getClient();
+  if (!redis) return 0;
+
+  try {
+    const count = await redis.incr(key);
+    if (count === 1) await redis.expire(key, ttlSeconds);
+    return count;
+  } catch (error) {
+    markUnavailable(error);
+    return 0;
+  }
+}
+
 export async function closeRedisCache(): Promise<void> {
   if (!client) return;
   await client.quit();

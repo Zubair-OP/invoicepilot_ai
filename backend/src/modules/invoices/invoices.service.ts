@@ -6,6 +6,7 @@ import { getSkipTake, buildPaginationMeta } from "../../common/utils/pagination.
 import { paginatedResponse } from "../../common/response.js";
 import { isDuplicateKeyError } from "../../common/utils/mongo.js";
 import { generateInvoiceNumber } from "./invoices.numbering.js";
+import { recordUsage } from "../billing/index.js";
 
 function computeTotals(
   items: CreateInvoiceInput["items"],
@@ -74,7 +75,7 @@ export async function create(userId: string, data: CreateInvoiceInput) {
   const invoiceNumber = await generateInvoiceNumber(userId, settings.invoicePrefix);
 
   try {
-    return await Invoice.create({
+    const invoice = await Invoice.create({
       userId,
       customerId: rest.customerId,
       invoiceNumber,
@@ -91,6 +92,10 @@ export async function create(userId: string, data: CreateInvoiceInput) {
         total: parseFloat((item.quantity * item.unitPrice).toFixed(2)),
       })),
     });
+
+    // Best-effort: bump the tenant's period usage; must not fail the create.
+    await recordUsage("invoicesPerMonth", userId);
+    return invoice;
   } catch (error) {
     if (isDuplicateKeyError(error)) {
       throw new ConflictError("Invoice number conflict, please retry");

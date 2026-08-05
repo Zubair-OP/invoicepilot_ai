@@ -18,4 +18,5 @@ export function renderEmail(type: EmailType, data: InvoiceEmailData): RenderedEm
 export { invoiceEmail } from "./invoiceEmail.js";
 export { reminderEmail } from "./reminderEmail.js";
 export { paymentReceivedEmail } from "./paymentReceivedEmail.js";
+export { paymentFailedEmail, type PaymentFailedEmailData } from "./paymentFailedEmail.js";
 export type { InvoiceEmailData, RenderedEmail } from "./shared.js";

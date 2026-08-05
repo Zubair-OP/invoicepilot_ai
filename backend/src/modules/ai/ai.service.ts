@@ -8,6 +8,7 @@ import { buildSystemPrompt, buildUserPrompt } from "./ai.prompts.js";
 import { aiInvoiceOutputSchema, type AiInvoiceOutput, type GenerateInvoiceInput, type ChatInput } from "./ai.validation.js";
 import { logger } from "../../observability/logger.js";
 import type { ITaxComponent } from "../../common/types/index.js";
+import { recordUsage } from "../billing/index.js";
 
 const groq = env.GROQ_API_KEY ? new Groq({ apiKey: env.GROQ_API_KEY }) : null;
 
@@ -101,7 +102,10 @@ export async function generateInvoice(
 
     // Parse + validate. On failure, retry once with the validation error appended
     // to the prompt, then fail cleanly with a 422 — never return unvalidated output.
-    return await parseAndValidate(rawContent, userId, settings, systemPrompt, userPrompt, controller);
+    const draft = await parseAndValidate(rawContent, userId, settings, systemPrompt, userPrompt, controller);
+    // Best-effort: consume one unit of the tenant's monthly AI quota.
+    await recordUsage("aiGenerationsPerMonth", userId);
+    return draft;
   } catch (error) {
     clearTimeout(timeoutId);
     if ((error as Error).name === "AbortError") {
@@ -251,6 +255,9 @@ export async function chat(userId: string, input: ChatInput): Promise<{ reply: s
       { userId, totalTokens: response.usage?.total_tokens },
       "AI invoice chat"
     );
+
+    // Best-effort: consume one unit of the tenant's monthly AI quota.
+    await recordUsage("aiGenerationsPerMonth", userId);
 
     return { reply: response.choices[0]?.message?.content ?? "" };
   } catch (error) {

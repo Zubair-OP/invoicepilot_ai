@@ -16,6 +16,9 @@ export function errorHandler(err: Error, req: Request, res: Response, _next: Nex
     if ("errors" in err) {
       (body as unknown as Record<string, unknown>).errors = (err as AppError & { errors: Record<string, string[]> }).errors;
     }
+    if (err.details) {
+      (body as unknown as Record<string, unknown>).details = err.details;
+    }
     return res.status(err.statusCode).json(body);
   }
 

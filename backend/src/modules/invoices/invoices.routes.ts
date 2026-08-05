@@ -6,6 +6,7 @@ import * as invoicesController from "./invoices.controller.js";
 import { pdfController } from "../pdf/index.js";
 import { emailController, sendEmailSchema } from "../email/index.js";
 import { remindersController } from "../reminders/index.js";
+import { enforcePlanLimit } from "../billing/index.js";
 
 const router = Router();
 
@@ -13,7 +14,8 @@ router.use(authenticate);
 
 router.get("/", invoicesController.list);
 router.get("/:id", invoicesController.getById);
-router.post("/", validate(createInvoiceSchema), invoicesController.create);
+// Plan limit on invoice creation — 402 once the tenant hits their per-period cap.
+router.post("/", validate(createInvoiceSchema), enforcePlanLimit("invoicesPerMonth"), invoicesController.create);
 router.patch("/:id", validate(updateInvoiceSchema), invoicesController.update);
 router.delete("/:id", invoicesController.remove);
 router.patch("/:id/send", invoicesController.markAsSent);

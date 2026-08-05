@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import { User, Customer, Invoice, Counter } from "./models/index.js";
 import { generateInvoiceNumber } from "../modules/invoices/invoices.numbering.js";
+import { seedPlans } from "../modules/billing/plans.seed.js";
 import { env } from "../config/env.js";
 
 /**
@@ -17,6 +18,8 @@ async function seed() {
 
   await mongoose.connect(env.MONGO_URI);
   console.log(`Connected to MongoDB (${env.NODE_ENV})`);
+
+  await seedPlans();
 
   await Promise.all([
     User.deleteMany({}),
