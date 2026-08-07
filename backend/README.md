@@ -2,7 +2,7 @@
 
 AI-powered invoice management and payment reminder platform.
 
-**Status:** Phases 1–9 complete. Phase 10 pending — see [PHASES.md](./PHASES.md).
+**Status:** Phases 1–10 complete. See [PHASES.md](./PHASES.md).
 
 ---
 
@@ -68,19 +68,21 @@ src/
 ├── config/env.ts           # Zod-validated environment — process exits on invalid config
 ├── common/
 │   ├── errors/             # AppError hierarchy (NotFound, Validation, Unauthorized, …)
-│   ├── middlewares/        # authenticate, authorize, validate, errorHandler, requestId
+│   ├── middlewares/        # authenticate, authorize, validate, errorHandler, requestId,
+│   │                       # rateLimit (Redis tiers), objectId, logSlowRequests
 │   ├── types/              # Shared interfaces + Express Request augmentation
-│   ├── utils/              # pagination, mongo error helpers
+│   ├── utils/              # pagination, mongo error helpers, escapeRegex
 │   └── response.ts         # Uniform success/error/paginated envelopes
 ├── database/
-│   ├── client.ts           # Connection lifecycle
+│   ├── client.ts           # Connection lifecycle (+ monitorCommands for slow-query logs)
 │   ├── models/             # Mongoose schemas + indexes
 │   ├── transaction.ts      # executeTransaction() helper
-│   └── seed.ts             # Dev seed
+│   ├── seed.ts             # Dev seed
+│   └── slowQueries.ts      # Driver-command listener → slow query warn logs
 ├── integrations/           # Third-party clients (clerk, ai, email, stripe)
 ├── modules/                # Feature modules — routes → controller → service
-├── jobs/                   # BullMQ queues
-├── observability/          # Pino logger
+├── jobs/                   # BullMQ queues + worker entrypoint
+├── observability/          # Pino logger, log context (AsyncLocalStorage), process handlers
 └── health/                 # Liveness/readiness probe
 ```
 
@@ -511,6 +513,79 @@ Shared rules:
   counter for plan-limit enforcement. A lightweight `AiUsage` model now records
   every successful generation/chat (best-effort) so the admin analytics can
   aggregate it historically. The plan-limit counter is unchanged.
+
+---
+
+## Production Hardening (Phase 10)
+
+### Rate limiting — Redis-backed, per-tier
+
+The single global in-memory limiter is gone. Three tiers, all backed by a Redis
+`INCR` store (`common/middlewares/rateLimit.ts`) so limits survive deploys and
+scale across instances. The store fails open: if Redis is down the limiter lets
+requests through rather than taking the API down.
+
+| Tier | Limit | Keyed by | Applied to |
+|---|---|---|---|
+| `apiLimiter` | 300 / 15 min | IP | the whole `/api/v1` surface (global floor) |
+| `strictLimiter` | 100 / 5 min | `userId` | users/me, settings, AI, invoice/customer writes, admin role changes, billing checkout/portal |
+| `generousLimiter` | 500 / 15 min | `userId` | reads: list/get, templates, billing subscription, dashboard, admin reads, health |
+
+Webhooks (`/webhooks/*`) are **not** rate limited — providers retry with
+signature-verified requests, and a limiter would break legitimate retries. They
+are mounted before the JSON body parser with a raw body so Svix/Stripe signature
+verification sees the exact bytes.
+
+### Input hardening
+
+- **Body size cap** — `BODY_SIZE_LIMIT` (default `1mb`). No client uploads exist
+  (PDFs are generated server-side), so this fits every request.
+- **ObjectId validation** — every `:id` param passes through `validateObjectId`
+  (`common/middlewares/objectId.ts`), which returns **400** for a malformed id
+  instead of letting a Mongoose `CastError` become a 500.
+- **ReDoS-safe search** — `customers`, `invoices`, and `admin` list routes escape
+  `?search=` metacharacters via the shared `escapeRegex` util
+  (`common/utils/regex.ts`) before interpolating into `$regex`. A payload like
+  `(a+)+$` is treated as a literal string, never a pattern.
+
+### Error handling & lifecycle
+
+- **No leaks in production.** `errorHandler` returns a generic "Internal server
+  error" for non-`AppError` throws when `NODE_ENV=production` (details in dev
+  only, and never a stack). AppError responses are client-safe by construction.
+- **Process-level safety.** `installProcessErrorHandlers()`
+  (`observability/processErrors.ts`) logs `unhandledRejection` /
+  `uncaughtException` and exits so the supervisor restarts a wedged process. Wired
+  into both the API (`app.ts`) and the worker (`jobs/worker.ts`).
+- **Graceful shutdown** closes the Mongo connection, BullMQ queues, the Redis
+  cache, the rate-limit store, and the Playwright browser on SIGTERM/SIGINT.
+
+### Observability
+
+- **Correlation ids.** Every request gets a `requestId` that rides along via an
+  `AsyncLocalStorage` context (`observability/context.ts`), so every Pino line
+  for a request carries it — including logs emitted by services deep in the call
+  stack. Workers wrap each job in the same context with a `jobId`.
+- **Redaction.** Pino `redact` scrubs `authorization`, cookies, tokens, API keys,
+  and secrets from all log output (`observability/logger.ts`) — a mis-logged
+  request object can never print a credential.
+- **Slow path detection.** `logSlowRequests` (middleware) warns on requests slower
+  than `SLOW_REQUEST_MS`; `enableSlowQueryLogging()` (`database/slowQueries.ts`,
+  driven by `monitorCommands: true` on the Mongo client) warns on database
+  commands slower than `SLOW_QUERY_MS`. Both off by tuning the env vars.
+
+### Headers & CORS
+
+- **Helmet** on every response with its safe defaults.
+- **CORS is a strict allow-list.** `CORS_ORIGIN` is comma-separated; in
+  production the server **refuses to boot** if `*` is present, because credentials
+  are enabled — a wildcard would let any site call the API with a stolen token.
+
+### Dependency hygiene
+
+`npm audit` is clean. Unused `bcryptjs`, `multer`, `@clerk/express` (and their
+types) were removed — the codebase uses Clerk's `@clerk/backend` directly and
+generates PDFs server-side rather than accepting uploads.
 
 ---
 

@@ -1,0 +1,253 @@
+# InvoicePilot AI — Backend REST Client Collection
+#
+# Open with the "REST Client" VS Code extension (or any .http tool), create a
+# `.env` with the values below, and run each request to exercise the API.
+#
+# All /api/v1 routes require `Authorization: Bearer <clerk_session_token>`
+# (a Clerk session JWT for a signed-in user). Webhooks need their raw bodies and
+# provider signatures and are intentionally NOT rate limited.
+
+@base = http://localhost:5000
+@api = {{base}}/api/v1
+
+# ─── Env (paste real values) ────────────────────────────────────────────────
+# Get a session token from a Clerk-signed-in browser or via Clerk's
+# `clerkClient.sessions.getToken()` — this collection cannot mint one.
+@token = <clerk_session_token>
+@invoiceId = <invoice_id>
+@customerId = <customer_id>
+
+# ─── Public / health ────────────────────────────────────────────────────────
+
+### Liveness probe (no auth, generous rate limit)
+GET {{base}}/health
+
+### Root info
+GET {{base}}/
+
+### Plan catalogue (public, no auth)
+GET {{api}}/billing/plans
+
+# ─── Auth required ──────────────────────────────────────────────────────────
+
+### Current profile
+GET {{api}}/users/me
+Authorization: Bearer {{token}}
+
+### Update name / company / avatar
+PATCH {{api}}/users/me
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "Jane Doe",
+  "company": "Acme Inc."
+}
+
+### Settings (current tenant's invoice defaults + appearance)
+GET {{api}}/settings
+Authorization: Bearer {{token}}
+
+### Update settings
+PATCH {{api}}/settings
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "defaultCurrency": "USD",
+  "invoicePrefix": "INV"
+}
+
+### List invoice templates
+GET {{api}}/templates
+Authorization: Bearer {{token}}
+
+# ─── Customers ──────────────────────────────────────────────────────────────
+
+### List (paginated, ?search= is ReDoS-safe)
+GET {{api}}/customers?page=1&limit=20&search=
+Authorization: Bearer {{token}}
+
+### Create
+POST {{api}}/customers
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "Acme Corp",
+  "email": "billing@acme.com",
+  "phone": "+1 555 0100"
+}
+
+### Get one (includes 5 most recent invoices)
+GET {{api}}/customers/{{customerId}}
+Authorization: Bearer {{token}}
+
+### Update
+PATCH {{api}}/customers/{{customerId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "email": "new@acme.com"
+}
+
+### Delete
+DELETE {{api}}/customers/{{customerId}}
+Authorization: Bearer {{token}}
+
+# ─── Invoices ───────────────────────────────────────────────────────────────
+
+### List (paginated, ?status=, ?search=)
+GET {{api}}/invoices?page=1&limit=20&status=&search=
+Authorization: Bearer {{token}}
+
+### Create (auto-assigns invoice number; inherits settings defaults)
+POST {{api}}/invoices
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "customerId": "{{customerId}}",
+  "currency": "USD",
+  "taxComponents": [{ "name": "VAT", "rate": 20 }],
+  "items": [
+    { "description": "Consulting", "quantity": 2, "unitPrice": 100 }
+  ],
+  "dueDate": "2026-09-01T00:00:00.000Z"
+}
+
+### Get one
+GET {{api}}/invoices/{{invoiceId}}
+Authorization: Bearer {{token}}
+
+### Update (blocked on SENT/PAID line items)
+PATCH {{api}}/invoices/{{invoiceId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "notes": "Thanks!"
+}
+
+### Delete (blocked on PAID)
+DELETE {{api}}/invoices/{{invoiceId}}
+Authorization: Bearer {{token}}
+
+### Mark sent (DRAFT → SENT)
+PATCH {{api}}/invoices/{{invoiceId}}/send
+Authorization: Bearer {{token}}
+
+### Mark paid (→ PAID)
+PATCH {{api}}/invoices/{{invoiceId}}/pay
+Authorization: Bearer {{token}}
+
+### Download PDF (Content-Disposition: attachment)
+GET {{api}}/invoices/{{invoiceId}}/pdf
+Authorization: Bearer {{token}}
+
+### Rendered HTML preview
+GET {{api}}/invoices/{{invoiceId}}/preview
+Authorization: Bearer {{token}}
+
+### Queue invoice email (202 Accepted)
+POST {{api}}/invoices/{{invoiceId}}/send-email
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "to": "client@acme.com",
+  "subject": "Invoice {{invoiceId}}"
+}
+
+### Queue ad-hoc reminder (202 Accepted)
+POST {{api}}/invoices/{{invoiceId}}/remind
+Authorization: Bearer {{token}}
+
+# ─── AI (Phase 4) ───────────────────────────────────────────────────────────
+
+### Generate a draft invoice from a plain-language description
+POST {{api}}/ai/generate-invoice
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "prompt": "Consulting work for Acme Corp, 5 hours at $120/hr, VAT 20%"
+}
+
+### Multi-turn refinement
+POST {{api}}/ai/chat
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "message": "Change the currency to EUR"
+}
+
+# ─── Billing (Phase 8) ──────────────────────────────────────────────────────
+
+### Current plan + period usage/limits
+GET {{api}}/billing/subscription
+Authorization: Bearer {{token}}
+
+### Stripe Checkout session for a plan
+POST {{api}}/billing/checkout
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "planKey": "pro"
+}
+
+### Stripe Billing Portal link
+POST {{api}}/billing/portal
+Authorization: Bearer {{token}}
+
+# ─── Dashboard & analytics (Phase 9) ────────────────────────────────────────
+
+### User dashboard (?from=&to= ISO-8601, default last 30 days)
+GET {{api}}/dashboard?from=&to=
+Authorization: Bearer {{token}}
+
+### Admin platform analytics (ADMIN only)
+GET {{api}}/admin/analytics?from=&to=
+Authorization: Bearer {{token}}
+
+# ─── Admin (ADMIN only) ─────────────────────────────────────────────────────
+
+### List users (paginated, ?search=, ?role=)
+GET {{api}}/admin/users?page=1&limit=20&search=&role=
+Authorization: Bearer {{token}}
+
+### User detail (+ invoice/customer counts)
+GET {{api}}/admin/users/<user_id>
+Authorization: Bearer {{token}}
+
+### Change role (audit-logged)
+PATCH {{api}}/admin/users/<user_id>/role
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "role": "ADMIN"
+}
+
+# ─── Webhooks (raw body, signature-verified, NOT rate limited) ──────────────
+
+### Clerk webhook (Svix signature required)
+POST {{base}}/webhooks/clerk
+Content-Type: application/json
+
+{
+  "type": "user.created",
+  "data": {}
+}
+
+### Stripe webhook (Stripe signature required)
+POST {{base}}/webhooks/stripe
+Content-Type: application/json
+
+{
+  "type": "checkout.session.completed",
+  "data": {}
+}

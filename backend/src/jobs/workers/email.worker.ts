@@ -2,6 +2,7 @@ import { Worker, type Worker as WorkerType } from "bullmq";
 import IORedis from "ioredis";
 import { redisConnectionOptions } from "../queues.js";
 import { logger } from "../../observability/logger.js";
+import { runWithLogContext } from "../../observability/context.js";
 import { processEmailJob } from "../../modules/email/index.js";
 import type { EmailJobData } from "../../modules/email/email.types.js";
 
@@ -22,10 +23,16 @@ export function startEmailWorker(): WorkerType<EmailJobData> {
   if (worker) return worker;
 
   connection = new IORedis(redisConnectionOptions);
-  worker = new Worker<EmailJobData>("email", processEmailJob, {
-    connection,
-    concurrency: EMAIL_WORKER_CONCURRENCY,
-  });
+  worker = new Worker<EmailJobData>(
+    "email",
+    // Run the processor inside the log context so every log line it emits
+    // carries the jobId correlation id (see observability/context.ts).
+    (job) => runWithLogContext({ jobId: job.id ?? "unknown" }, () => processEmailJob(job)),
+    {
+      connection,
+      concurrency: EMAIL_WORKER_CONCURRENCY,
+    }
+  );
 
   worker.on("completed", (job) => {
     logger.info({ jobId: job.id }, "Email job completed");

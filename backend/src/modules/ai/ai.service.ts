@@ -9,6 +9,7 @@ import { buildSystemPrompt, buildUserPrompt } from "./ai.prompts.js";
 import { aiInvoiceOutputSchema, type AiInvoiceOutput, type GenerateInvoiceInput, type ChatInput } from "./ai.validation.js";
 import { logger } from "../../observability/logger.js";
 import type { ITaxComponent } from "../../common/types/index.js";
+import { escapeRegex } from "../../common/utils/regex.js";
 import { recordUsage } from "../billing/index.js";
 
 const groq = env.GROQ_API_KEY ? new Groq({ apiKey: env.GROQ_API_KEY }) : null;
@@ -203,10 +204,6 @@ async function buildDraft(
     dueDate,
     notes,
   };
-}
-
-function escapeRegex(str: string): string {
-  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 /**

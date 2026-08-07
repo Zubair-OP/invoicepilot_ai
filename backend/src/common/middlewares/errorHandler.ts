@@ -24,11 +24,14 @@ export function errorHandler(err: Error, req: Request, res: Response, _next: Nex
 
   logger.error({ err, requestId: req.id }, "Unhandled error");
 
+  // Non-AppError throws: never leak internals. `err` may not even be an Error
+  // (a handler could `throw "string"`), so coerce defensively. In production the
+  // message is always generic; in development the real message is useful.
+  const isProduction = env.NODE_ENV === "production";
+  const rawMessage = err instanceof Error ? err.message : "Unknown error";
+
   return res.status(500).json(
-    errorResponse(
-      env.NODE_ENV === "production" ? "Internal server error" : err.message,
-      "INTERNAL_SERVER_ERROR"
-    )
+    errorResponse(isProduction ? "Internal server error" : rawMessage, "INTERNAL_SERVER_ERROR")
   );
 }
 

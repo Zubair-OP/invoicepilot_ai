@@ -3,6 +3,7 @@ import { NotFoundError, ConflictError } from "../../common/errors/index.js";
 import type { PaginationParams, UserRole, IUser } from "../../common/types/index.js";
 import type { PaginatedResponse } from "../../common/response.js";
 import { getSkipTake, buildPaginationMeta } from "../../common/utils/pagination.js";
+import { escapeRegex } from "../../common/utils/regex.js";
 import { paginatedResponse } from "../../common/response.js";
 import { invalidateAuthUser } from "../../common/cache/redis.js";
 import { logActivity } from "../activity/index.js";
@@ -29,9 +30,11 @@ export async function listUsersAcrossTenants(
 
   if (filters.role) filter.role = filters.role;
   if (filters.search) {
+    // User-controlled — escape before interpolation (ReDoS hardening, Phase 10).
+    const escaped = escapeRegex(filters.search);
     filter.$or = [
-      { name: { $regex: filters.search, $options: "i" } },
-      { email: { $regex: filters.search, $options: "i" } },
+      { name: { $regex: escaped, $options: "i" } },
+      { email: { $regex: escaped, $options: "i" } },
     ];
   }
 

@@ -3,6 +3,7 @@ import { NotFoundError, ConflictError } from "../../common/errors/index.js";
 import type { CreateInvoiceInput, UpdateInvoiceInput } from "./invoices.validation.js";
 import type { PaginationParams, ITaxComponent } from "../../common/types/index.js";
 import { getSkipTake, buildPaginationMeta } from "../../common/utils/pagination.js";
+import { escapeRegex } from "../../common/utils/regex.js";
 import { paginatedResponse } from "../../common/response.js";
 import { isDuplicateKeyError } from "../../common/utils/mongo.js";
 import { generateInvoiceNumber } from "./invoices.numbering.js";
@@ -35,7 +36,8 @@ export async function list(
   const filter: Record<string, unknown> = { userId };
   if (filters?.status) filter.status = filters.status;
   if (filters?.search) {
-    filter.$or = [{ invoiceNumber: { $regex: filters.search, $options: "i" } }];
+    // User-controlled — escape before interpolation (ReDoS hardening, Phase 10).
+    filter.$or = [{ invoiceNumber: { $regex: escapeRegex(filters.search), $options: "i" } }];
   }
 
   const { skip, take } = getSkipTake(pagination);

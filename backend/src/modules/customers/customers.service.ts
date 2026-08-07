@@ -3,6 +3,7 @@ import { NotFoundError } from "../../common/errors/index.js";
 import type { CreateCustomerInput, UpdateCustomerInput } from "./customers.validation.js";
 import type { PaginationParams, ICustomer, IInvoice } from "../../common/types/index.js";
 import { getSkipTake, buildPaginationMeta } from "../../common/utils/pagination.js";
+import { escapeRegex } from "../../common/utils/regex.js";
 import { paginatedResponse } from "../../common/response.js";
 import { recordUsage } from "../billing/index.js";
 
@@ -15,9 +16,12 @@ export async function list(userId: string, pagination: PaginationParams, search?
   const filter: Record<string, unknown> = { userId };
 
   if (search) {
+    // `search` is user input — escape it before interpolating into $regex or a
+    // crafted term like `(a+)+$` (ReDoS) could hang the query engine.
+    const escaped = escapeRegex(search);
     filter.$or = [
-      { name: { $regex: search, $options: "i" } },
-      { email: { $regex: search, $options: "i" } },
+      { name: { $regex: escaped, $options: "i" } },
+      { email: { $regex: escaped, $options: "i" } },
     ];
   }
 

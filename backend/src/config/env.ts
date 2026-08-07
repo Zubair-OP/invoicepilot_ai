@@ -7,6 +7,11 @@ const envSchema = z.object({
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
   PORT: z.coerce.number().default(3000),
   API_PREFIX: z.string().default("/api/v1"),
+  // Comma-separated allow-list of frontend origins. In production this must be
+  // an explicit list — never `*` — because credentials are enabled (a wildcard
+  // origin + credentials is rejected by browsers anyway, and `*` would let any
+  // site call the API with a stolen token). A wildcard is rejected below, after
+  // parsing, when NODE_ENV is production.
   CORS_ORIGIN: z.string().default("http://localhost:5173"),
 
   MONGO_URI: z.string().default("mongodb://localhost:27017/invoicepilot"),
@@ -36,12 +41,26 @@ const envSchema = z.object({
   MAX_FILE_SIZE_MB: z.coerce.number().default(10),
 
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace"]).default("info"),
+
+  // JSON body size cap. No client uploads exist yet (PDFs are generated
+  // server-side and attached to emails, never uploaded), so 1mb comfortably
+  // fits every request shape.
+  BODY_SIZE_LIMIT: z.string().default("1mb"),
+
+  // Thresholds for the slow request / slow query warn logs (ms).
+  SLOW_REQUEST_MS: z.coerce.number().default(1000),
+  SLOW_QUERY_MS: z.coerce.number().default(1000),
 });
 
 const parsed = envSchema.safeParse(process.env);
 
 if (!parsed.success) {
   console.error("Invalid environment variables:", parsed.error.flatten().fieldErrors);
+  process.exit(1);
+}
+
+if (parsed.data.NODE_ENV === "production" && parsed.data.CORS_ORIGIN.split(",").some((origin) => origin.trim() === "*")) {
+  console.error("Invalid environment variables: CORS_ORIGIN cannot be '*' in production with credentials enabled");
   process.exit(1);
 }
 

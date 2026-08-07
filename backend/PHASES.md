@@ -38,7 +38,7 @@ inherits.
 | 7 | Reminder automation | ✅ Done |
 | 8 | Billing + plan limits | ✅ Done |
 | 9 | Dashboard + analytics | ✅ Done |
-| 10 | Security hardening + docs | ⬜ |
+| 10 | Security hardening + docs | ✅ Done |
 
 ---
 
@@ -607,6 +607,37 @@ never `*` with credentials enabled.
 - Production error responses leak nothing
 - No secrets appear in logs
 - Documented deployment steps work from scratch
+
+### Result
+
+All deliverables complete:
+
+- **Rate limiting.** Three Redis-backed tiers in `common/middlewares/rateLimit.ts`
+  (`apiLimiter` per-IP floor, `strictLimiter`/`generousLimiter` per-`userId`),
+  wired per route across every module; webhooks exempt (raw body, provider
+  retries). Store fails open on Redis outage.
+- **Input hardening.** `BODY_SIZE_LIMIT`, `validateObjectId` (400 on malformed
+  `:id`), and `escapeRegex` (`common/utils/regex.ts`) applied to every
+  user-supplied `$regex` search.
+- **Isolation audit.** New tests per module — customers, invoices, users/settings,
+  dashboard, and the document paths (pdf/email/reminders) — prove tenant A cannot
+  read/update/delete tenant B's records. 156 tests pass.
+- **Error handling.** `errorHandler` hides internals for non-`AppError` throws in
+  production; `installProcessErrorHandlers()` logs + exits on
+  unhandledRejection/uncaughtException; graceful shutdown closes Mongo, queues,
+  Redis, rate-limit store, and the Playwright browser.
+- **Observability.** `requestId` propagates into every log line via an
+  AsyncLocalStorage context (jobs carry `jobId`); Pino `redact` scrubs secrets;
+  slow requests (`SLOW_REQUEST_MS`) and slow queries (`SLOW_QUERY_MS`) are logged.
+- **Headers & CORS.** Helmet defaults on; `CORS_ORIGIN` is a strict allow-list and
+  the server refuses to boot with `*` in production (credentials are enabled).
+- **Docs.** README updated (hardening section, route table, architecture tree);
+  REST client collection in `docs/api.http`; deployment guide in `DEPLOYMENT.md`.
+- **Dependencies.** `npm audit` clean; removed unused `bcryptjs`, `multer`,
+  `@clerk/express` and their types.
+
+**Verified:** `npm run typecheck` clean · `npm run build` clean · `npm run test:run`
+passes (156 tests, 25 files).
 
 ---
 

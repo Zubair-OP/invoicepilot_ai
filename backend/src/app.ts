@@ -2,12 +2,15 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import cookieParser from "cookie-parser";
-import rateLimit from "express-rate-limit";
 
 import { env } from "./config/env.js";
 import { connectDatabase, disconnectDatabase } from "./database/client.js";
 import { requestId } from "./common/middlewares/requestId.js";
 import { errorHandler, notFoundHandler } from "./common/middlewares/errorHandler.js";
+import { logSlowRequests } from "./common/middlewares/slowRequests.js";
+import { apiLimiter, generousLimiter, closeRateLimitStore } from "./common/middlewares/rateLimit.js";
+import { installProcessErrorHandlers } from "./observability/processErrors.js";
+import { enableSlowQueryLogging } from "./database/slowQueries.js";
 import { logger } from "./observability/logger.js";
 import { closeRedisCache } from "./common/cache/redis.js";
 import { closeBrowser } from "./modules/pdf/index.js";
@@ -27,30 +30,37 @@ import healthRoutes from "./health/health.routes.js";
 
 const app = express();
 
+// CORS_ORIGIN is a comma-separated allow-list (validated in env.ts to never be
+// `*` in production, since credentials are enabled). Parse it into an array so
+// multiple frontend origins can be trusted.
+const corsOrigins = env.CORS_ORIGIN.split(",").map((origin) => origin.trim()).filter(Boolean);
+
 app.use(helmet());
-app.use(cors({ origin: env.CORS_ORIGIN, credentials: true }));
+app.use(cors({ origin: corsOrigins, credentials: true }));
 app.use(cookieParser());
 app.use(requestId);
+app.use(logSlowRequests);
 
-app.use(
-  rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 100,
-    standardHeaders: true,
-    legacyHeaders: false,
-    message: { success: false, message: "Too many requests", code: "RATE_LIMIT_EXCEEDED" },
-  })
-);
-
+// Webhooks are mounted before the JSON body parser and are NOT rate limited:
+// providers (Stripe/Clerk) retry aggressively and their IPs are shared. The
+// Svix/Stripe signature verification is the security boundary for these routes.
 app.use("/webhooks", express.raw({ type: "application/json" }), webhooksRoutes);
-app.use(express.json({ limit: "1mb" }));
+
+app.use(express.json({ limit: env.BODY_SIZE_LIMIT }));
 app.use(express.urlencoded({ extended: true }));
 
 app.get("/", (_req, res) => {
   res.json({ name: "InvoicePilot API", version: "1.0.0" });
 });
 
-app.use("/health", healthRoutes);
+// Liveness probe: cheap and polled by load balancers, so a generous limit only.
+app.use("/health", generousLimiter, healthRoutes);
+
+// Default per-IP safety net for the whole API surface. Tighter per-tenant
+// tiers (strictLimiter / generousLimiter) are applied per-route inside each
+// module, all backed by the same Redis — see common/middlewares/rateLimit.ts.
+app.use(apiLimiter);
+
 app.use(`${env.API_PREFIX}/users`, usersRoutes);
 app.use(`${env.API_PREFIX}/customers`, customersRoutes);
 app.use(`${env.API_PREFIX}/invoices`, invoicesRoutes);
@@ -65,7 +75,9 @@ app.use(notFoundHandler);
 app.use(errorHandler);
 
 async function main() {
+  installProcessErrorHandlers();
   await connectDatabase();
+  enableSlowQueryLogging();
   await seedPlans();
 
   // Phase 7: workers (email + reminder sweep) run in the dedicated worker
@@ -82,13 +94,21 @@ main().catch((err) => {
   process.exit(1);
 });
 
-process.on("SIGTERM", async () => {
-  logger.info("SIGTERM received, shutting down...");
+let shuttingDown = false;
+async function shutdown(signal: string) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+
+  logger.info({ signal }, "Shutting down...");
   await closeQueues();
   await closeBrowser();
   await closeRedisCache();
+  closeRateLimitStore();
   await disconnectDatabase();
   process.exit(0);
-});
+}
+
+process.on("SIGTERM", () => void shutdown("SIGTERM"));
+process.on("SIGINT", () => void shutdown("SIGINT"));
 
 export default app;

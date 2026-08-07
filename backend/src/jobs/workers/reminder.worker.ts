@@ -2,6 +2,7 @@ import { Worker, type Worker as WorkerType } from "bullmq";
 import IORedis from "ioredis";
 import { redisConnectionOptions } from "../queues.js";
 import { logger } from "../../observability/logger.js";
+import { runWithLogContext } from "../../observability/context.js";
 import { processReminderSweep } from "../../modules/reminders/index.js";
 import { REMINDER_QUEUE_NAME } from "../../modules/reminders/reminders.types.js";
 
@@ -23,10 +24,15 @@ export function startReminderWorker(): WorkerType {
   if (worker) return worker;
 
   connection = new IORedis(redisConnectionOptions);
-  worker = new Worker(REMINDER_QUEUE_NAME, async () => processReminderSweep(), {
-    connection,
-    concurrency: REMINDER_WORKER_CONCURRENCY,
-  });
+  worker = new Worker(
+    REMINDER_QUEUE_NAME,
+    // Run the sweep inside the log context so its logs carry the jobId.
+    (job) => runWithLogContext({ jobId: job.id ?? "unknown" }, () => processReminderSweep()),
+    {
+      connection,
+      concurrency: REMINDER_WORKER_CONCURRENCY,
+    }
+  );
 
   worker.on("completed", (job) => {
     logger.info({ jobId: job.id }, "Reminder sweep completed");

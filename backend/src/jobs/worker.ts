@@ -1,5 +1,6 @@
 import { connectDatabase, disconnectDatabase } from "../database/client.js";
 import { logger } from "../observability/logger.js";
+import { installProcessErrorHandlers } from "../observability/processErrors.js";
 import { closeRedisCache } from "../common/cache/redis.js";
 import { closeBrowser } from "../modules/pdf/index.js";
 import { closeQueues } from "./queues.js";
@@ -16,6 +17,7 @@ import { scheduleReminderSweep } from "./scheduler.js";
 // is torn down here as well as in the API.
 
 async function main() {
+  installProcessErrorHandlers();
   await connectDatabase();
 
   startEmailWorker();
