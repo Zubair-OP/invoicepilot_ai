@@ -50,7 +50,7 @@ const settingsSchema = new Schema<IUserSettings>(
 // month. Default status is "active" so a brand-new free account is never blocked.
 const subscriptionSchema = new Schema<IUserSubscription>(
   {
-    planKey: { type: String, enum: ["free", "pro", "business"], default: "free" },
+    planKey: { type: String, enum: ["free", "pro", "premium"], default: "free" },
     stripeCustomerId: { type: String, trim: true },
     stripeSubscriptionId: { type: String, trim: true },
     status: { type: String, enum: ["active", "past_due", "canceled", "trialing"], default: "active" },

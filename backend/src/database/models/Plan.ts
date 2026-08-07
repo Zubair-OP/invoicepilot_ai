@@ -23,7 +23,7 @@ export type PlanDocument = IPlan & Document;
 
 const planSchema = new Schema<PlanDocument>(
   {
-    key: { type: String, enum: ["free", "pro", "business"], required: true, unique: true, index: true },
+    key: { type: String, enum: ["free", "pro", "premium"], required: true, unique: true, index: true },
     name: { type: String, required: true, trim: true },
     stripePriceId: { type: String, trim: true },
     limits: {

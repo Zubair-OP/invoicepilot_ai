@@ -161,7 +161,7 @@ describe("Stripe billing webhook events", () => {
       clerkId: `${PREFIX}_downgrade`,
       email: "downgrade@example.com",
       name: "Downgrade",
-      subscription: { planKey: "business", status: "active", stripeCustomerId: STRIPE_CUSTOMER },
+      subscription: { planKey: "premium", status: "active", stripeCustomerId: STRIPE_CUSTOMER },
     });
 
     const now = new Date();

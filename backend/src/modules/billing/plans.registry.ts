@@ -43,25 +43,27 @@ export const PLANS: readonly PlanDefinition[] = [
     key: "pro",
     name: "Pro",
     description: "For growing businesses that invoice regularly.",
+    stripePriceId: "price_1U1lDrBkqpS5AxlVEPMJmcKz",
     limits: {
       invoicesPerMonth: 100,
       customers: -1,
       aiGenerationsPerMonth: 200,
       templatesAllowed: ["classic", "modern", "minimal"],
     },
-    priceMonthly: 12,
+    priceMonthly: 19,
   },
   {
-    key: "business",
-    name: "Business",
+    key: "premium",
+    name: "Premium",
     description: "Unlimited invoicing and AI for high-volume teams.",
+    stripePriceId: "price_1U1lFCBkqpS5AxlVNWn9ssbm",
     limits: {
       invoicesPerMonth: -1,
       customers: -1,
       aiGenerationsPerMonth: -1,
       templatesAllowed: ["classic", "modern", "minimal"],
     },
-    priceMonthly: 29,
+    priceMonthly: 49,
   },
 ] as const;
 

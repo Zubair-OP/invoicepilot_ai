@@ -69,7 +69,7 @@ export interface IUser {
 }
 
 // ─── Billing / plan limits (Phase 8) ─────────────────────
-export type PlanKey = "free" | "pro" | "business";
+export type PlanKey = "free" | "pro" | "premium";
 
 export type SubscriptionStatus = "active" | "past_due" | "canceled" | "trialing";
 

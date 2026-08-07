@@ -435,8 +435,8 @@ what enforcement reads** — a missing/unseeded plan document can never block wo
 | Plan | Invoices/mo | Customers | AI/mo | Templates | Price |
 |---|---|---|---|---|---|
 | `free` | 5 | 10 | 10 | `classic` | $0 |
-| `pro` | 100 | unlimited | 200 | all | $12/mo |
-| `business` | unlimited | unlimited | unlimited | all | $29/mo |
+| `pro` | 100 | unlimited | 200 | all | $19/mo |
+| `premium` | unlimited | unlimited | unlimited | all | $49/mo |
 
 - **`User.subscription`** (`planKey` default `free`, `status`, `stripeCustomerId`,
   `stripeSubscriptionId`, `currentPeriodStart`, `currentPeriodEnd`). Default

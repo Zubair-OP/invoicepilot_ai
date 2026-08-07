@@ -78,10 +78,10 @@ describe("platform analytics", { timeout: 60000 }, () => {
       createdAt: daysAgo(50),
     });
     await User.create({
-      clerkId: `${PREFIX}_business`,
-      email: "adm-business@example.com",
-      name: "Adm Business",
-      subscription: { planKey: "business", status: "active" },
+      clerkId: `${PREFIX}_premium`,
+      email: "adm-premium@example.com",
+      name: "Adm Premium",
+      subscription: { planKey: "premium", status: "active" },
       createdAt: daysAgo(48),
     });
     // Canceled and soft-deleted accounts must not count as subscribers/users.
@@ -138,17 +138,17 @@ describe("platform analytics", { timeout: 60000 }, () => {
     expect(after.users.growth).toBe(before.users.growth + 4);
     expect(after.users.total).toBeGreaterThanOrEqual(before.users.total + 4);
 
-    // Active subscriptions: free/pro/business each gained one; canceled +0.
-    const planCount = (key: "free" | "pro" | "business") =>
+    // Active subscriptions: free/pro/premium each gained one; canceled +0.
+    const planCount = (key: "free" | "pro" | "premium") =>
       after.activeSubscriptionsByPlan.find((entry) => entry.planKey === key)!.count;
-    const beforePlanCount = (key: "free" | "pro" | "business") =>
+    const beforePlanCount = (key: "free" | "pro" | "premium") =>
       before.activeSubscriptionsByPlan.find((entry) => entry.planKey === key)!.count;
     expect(planCount("free")).toBeGreaterThanOrEqual(beforePlanCount("free") + 1);
     expect(planCount("pro")).toBeGreaterThanOrEqual(beforePlanCount("pro") + 1);
-    expect(planCount("business")).toBeGreaterThanOrEqual(beforePlanCount("business") + 1);
+    expect(planCount("premium")).toBeGreaterThanOrEqual(beforePlanCount("premium") + 1);
 
-    // MRR = 1 pro ($12) + 1 business ($29).
-    expect(after.mrr).toBeGreaterThanOrEqual(before.mrr + 41);
+    // MRR = 1 pro ($19) + 1 premium ($49).
+    expect(after.mrr).toBeGreaterThanOrEqual(before.mrr + 68);
 
     // Invoice volume: 2 issued invoices in the window, USD 100 + INR 500 grouped separately.
     expect(after.invoiceVolume.count).toBe(before.invoiceVolume.count + 2);
@@ -162,7 +162,7 @@ describe("platform analytics", { timeout: 60000 }, () => {
     expect(aiByKind.generate).toBe((before.aiUsage.byKind.find((e) => e.kind === "generate")?.count ?? 0) + 3);
     expect(aiByKind.chat).toBe((before.aiUsage.byKind.find((e) => e.kind === "chat")?.count ?? 0) + 2);
 
-    // Signups over time: exactly 4 non-zero days (free/pro/business/canceled);
+    // Signups over time: exactly 4 non-zero days (free/pro/premium/canceled);
     // the soft-deleted user adds nothing.
     const signupsSum = after.signupsOverTime.reduce((sum, day) => sum + day.count, 0);
     const beforeSignupsSum = before.signupsOverTime.reduce((sum, day) => sum + day.count, 0);

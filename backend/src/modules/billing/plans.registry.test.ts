@@ -4,7 +4,7 @@ import { INVOICE_TEMPLATES } from "../templates/templates.registry.js";
 
 describe("plans registry", () => {
   it("defines exactly the three expected plans", () => {
-    expect(PLANS.map((p) => p.key)).toEqual(["free", "pro", "business"]);
+    expect(PLANS.map((p) => p.key)).toEqual(["free", "pro", "premium"]);
   });
 
   it("free has the documented starter limits", () => {
@@ -17,12 +17,13 @@ describe("plans registry", () => {
   it("pro allows 100 invoices, unlimited customers, all templates", () => {
     const pro = getPlanByKey("pro")!;
     expect(pro.limits).toMatchObject({ invoicesPerMonth: 100, customers: -1, aiGenerationsPerMonth: 200 });
-    expect(pro.priceMonthly).toBeGreaterThan(0);
+    expect(pro.priceMonthly).toBe(19);
   });
 
-  it("business is fully unlimited", () => {
-    const business = getPlanByKey("business")!;
-    expect(business.limits).toMatchObject({ invoicesPerMonth: -1, customers: -1, aiGenerationsPerMonth: -1 });
+  it("premium is fully unlimited", () => {
+    const premium = getPlanByKey("premium")!;
+    expect(premium.limits).toMatchObject({ invoicesPerMonth: -1, customers: -1, aiGenerationsPerMonth: -1 });
+    expect(premium.priceMonthly).toBe(49);
   });
 
   it("every template id allowed by a plan exists in the registry", () => {
