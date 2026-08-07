@@ -165,6 +165,34 @@ export async function cacheSetInt(key: string, value: number, ttlSeconds: number
   }
 }
 
+// ─── Generic JSON cache (used for dashboard/analytics snapshots) ──
+// Stores a whole object serialised to JSON. Fails open when Redis is down so a
+// cache outage falls back to a fresh aggregation rather than an empty dashboard.
+
+export async function cacheGetJSON(key: string): Promise<unknown | null> {
+  const redis = await getClient();
+  if (!redis) return null;
+
+  try {
+    const value = await redis.get(key);
+    return value === null ? null : (JSON.parse(value) as unknown);
+  } catch (error) {
+    markUnavailable(error);
+    return null;
+  }
+}
+
+export async function cacheSetJSON(key: string, value: unknown, ttlSeconds: number): Promise<void> {
+  const redis = await getClient();
+  if (!redis) return;
+
+  try {
+    await redis.set(key, JSON.stringify(value), "EX", ttlSeconds);
+  } catch (error) {
+    markUnavailable(error);
+  }
+}
+
 export async function cacheDelete(key: string): Promise<void> {
   const redis = await getClient();
   if (!redis) return;

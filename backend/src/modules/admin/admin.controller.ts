@@ -1,7 +1,9 @@
 import { Request, Response, NextFunction } from "express";
 import * as adminService from "./admin.service.js";
+import * as adminAnalytics from "./admin.analytics.js";
 import { getPaginationParams } from "../../common/utils/pagination.js";
 import { successResponse } from "../../common/response.js";
+import { resolveDashboardRange } from "../dashboard/dashboard.validation.js";
 import type { UserRole } from "../../common/types/index.js";
 
 export async function listUsers(req: Request, res: Response, next: NextFunction) {
@@ -36,6 +38,16 @@ export async function updateUserRole(req: Request, res: Response, next: NextFunc
       ipAddress: req.ip,
     });
     res.json(successResponse(user, "User role updated successfully"));
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function getAnalytics(req: Request, res: Response, next: NextFunction) {
+  try {
+    const range = resolveDashboardRange(req.query.from as string | undefined, req.query.to as string | undefined);
+    const analytics = await adminAnalytics.getPlatformAnalytics(range);
+    res.json(successResponse(analytics));
   } catch (error) {
     next(error);
   }

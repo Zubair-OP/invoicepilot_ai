@@ -2,7 +2,7 @@
 
 AI-powered invoice management and payment reminder platform.
 
-**Status:** Phases 1–8 complete. Phases 9–10 pending — see [PHASES.md](./PHASES.md).
+**Status:** Phases 1–9 complete. Phase 10 pending — see [PHASES.md](./PHASES.md).
 
 ---
 
@@ -253,6 +253,8 @@ All routes require `Authorization: Bearer <clerk_session_token>`.
 | `GET` | `/api/v1/billing/subscription` | Current plan + period usage/limits |
 | `POST` | `/api/v1/billing/checkout` | Stripe Checkout session for a plan (`{ planKey }`) |
 | `POST` | `/api/v1/billing/portal` | Stripe Billing Portal link |
+| `GET` | `/api/v1/dashboard` | User dashboard + analytics, `?from=&to=` |
+| `GET` | `/api/v1/admin/analytics` | ADMIN only. Platform-wide analytics, `?from=&to=` |
 | `POST` | `/webhooks/clerk` | Raw body, Svix signature-verified |
 | `POST` | `/webhooks/stripe` | Raw body, signature-verified |
 
@@ -468,6 +470,47 @@ what enforcement reads** — a missing/unseeded plan document can never block wo
 > `POST /webhooks/stripe`), and each paid plan's `stripePriceId` come from your
 > Stripe dashboard — fill the price ids into `plans.registry.ts`. The SDK's
 > pinned API version (`2025-02-24.acacia`) was verified against `stripe@17.7.0`.
+
+### Dashboard & analytics
+
+Phase 9 adds the numbers both dashboards need, computed with **MongoDB
+aggregation pipelines** — never application-side loops.
+
+**`GET /api/v1/dashboard`** (authenticated) returns, scoped to the caller's
+tenant (`userId` is the first `$match` stage of every pipeline):
+
+- **Outstanding** — issued-but-unpaid (SENT/OVERDUE) value, a live snapshot not
+  bound by the period filter.
+- **Paid in period** — PAID invoices by `paidAt` within `[from, to)`.
+- **Overdue** — past-due unpaid count + value (SENT/OVERDUE with `dueDate < now`).
+- **Invoices by status** — count + value per status in the period, zero-filled.
+- **Recent invoices** — the five newest.
+- **Top customers** — period revenue ranked per currency.
+- **Monthly revenue trend** — the last 12 calendar months ending at `to`,
+  zero-filled.
+- **Average days to payment** — mean of `paidAt - issuedAt` for invoices paid in
+  the period (`null` when none).
+
+**`GET /api/v1/admin/analytics`** (ADMIN only) spans all tenants — deliberate,
+confined to the analytics module: total users + period growth, active
+subscriptions per plan, MRR (Σ plan `priceMonthly` for active subscriptions, all
+prices are USD), platform invoice volume, AI usage, and daily signup / AI-usage
+trends.
+
+Shared rules:
+
+- **`?from=`/`?to=`** accept ISO-8601 timestamps and default to the last 30 days.
+  `from < to` and a max span of 366 days are enforced (422 otherwise).
+- **Currency is never summed across currencies** — every money figure is grouped
+  (`[{ currency, amount, count }]`). Adding USD to INR would be meaningless.
+- **Zeroed, never `null`** — new/empty accounts return empty arrays and zero
+  counts so clients never special-case emptiness.
+- **Cached in Redis** for 5 minutes keyed by tenant + range (dashboard) or range
+  (admin) — these aggregations are expensive and dashboards refresh often.
+- **Durable AI usage.** AI usage previously lived only in a short-TTL Redis
+  counter for plan-limit enforcement. A lightweight `AiUsage` model now records
+  every successful generation/chat (best-effort) so the admin analytics can
+  aggregate it historically. The plan-limit counter is unchanged.
 
 ---
 

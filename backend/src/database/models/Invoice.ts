@@ -97,6 +97,11 @@ invoiceSchema.index({ userId: 1, createdAt: -1 });
 // Supports status filtering within a tenant.
 invoiceSchema.index({ userId: 1, status: 1 });
 
+// Supports the dashboard's period-scoped aggregations (?from=/?to=, monthly
+// trend, paid-in-period): every pipeline $matches on userId first, then ranges
+// over issuedAt.
+invoiceSchema.index({ userId: 1, issuedAt: 1 });
+
 // Drives the overdue-reminder sweep (Phase 7): find unpaid invoices past due.
 invoiceSchema.index({ status: 1, dueDate: 1 });
 

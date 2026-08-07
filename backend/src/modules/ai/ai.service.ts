@@ -1,7 +1,8 @@
 import Groq from "groq-sdk";
 import { z } from "zod";
 import { env } from "../../config/env.js";
-import { Customer, User } from "../../database/models/index.js";
+import { Customer, User, AiUsage } from "../../database/models/index.js";
+import type { AiUsageKind } from "../../database/models/AiUsage.js";
 import { ServiceUnavailableError, RateLimitError, ValidationError } from "../../common/errors/index.js";
 import { incrementRateLimit } from "../../common/cache/redis.js";
 import { buildSystemPrompt, buildUserPrompt } from "./ai.prompts.js";
@@ -103,8 +104,10 @@ export async function generateInvoice(
     // Parse + validate. On failure, retry once with the validation error appended
     // to the prompt, then fail cleanly with a 422 — never return unvalidated output.
     const draft = await parseAndValidate(rawContent, userId, settings, systemPrompt, userPrompt, controller);
-    // Best-effort: consume one unit of the tenant's monthly AI quota.
+    // Best-effort: consume one unit of the tenant's monthly AI quota, and append
+    // a durable row for the admin AI-usage analytics.
     await recordUsage("aiGenerationsPerMonth", userId);
+    await recordAiUsage(userId, "generate");
     return draft;
   } catch (error) {
     clearTimeout(timeoutId);
@@ -256,8 +259,10 @@ export async function chat(userId: string, input: ChatInput): Promise<{ reply: s
       "AI invoice chat"
     );
 
-    // Best-effort: consume one unit of the tenant's monthly AI quota.
+    // Best-effort: consume one unit of the tenant's monthly AI quota, and append
+    // a durable row for the admin AI-usage analytics.
     await recordUsage("aiGenerationsPerMonth", userId);
+    await recordAiUsage(userId, "chat");
 
     return { reply: response.choices[0]?.message?.content ?? "" };
   } catch (error) {
@@ -266,5 +271,17 @@ export async function chat(userId: string, input: ChatInput): Promise<{ reply: s
       throw new ServiceUnavailableError("AI request timeout");
     }
     throw error;
+  }
+}
+
+/**
+ * Appends a durable AI-usage row for the admin analytics. Best-effort — a
+ * logging failure must never fail the generation that already succeeded.
+ */
+async function recordAiUsage(userId: string, kind: AiUsageKind): Promise<void> {
+  try {
+    await AiUsage.create({ userId, kind });
+  } catch (error) {
+    logger.warn({ err: error, userId, kind }, "Failed to record AI usage analytics");
   }
 }

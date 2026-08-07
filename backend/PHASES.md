@@ -37,7 +37,7 @@ inherits.
 | 6 | Email delivery | ✅ Done |
 | 7 | Reminder automation | ✅ Done |
 | 8 | Billing + plan limits | ✅ Done |
-| 9 | Dashboard + analytics | ⬜ |
+| 9 | Dashboard + analytics | ✅ Done |
 | 10 | Security hardening + docs | ⬜ |
 
 ---
