@@ -70,3 +70,21 @@ export async function markAsPaid(req: Request, res: Response, next: NextFunction
     next(error);
   }
 }
+
+export async function voidInvoice(req: Request, res: Response, next: NextFunction) {
+  try {
+    const invoice = await invoicesService.voidInvoice(req.user!.userId, req.params.id);
+    res.json(successResponse(invoice, "Invoice voided successfully"));
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function unvoidInvoice(req: Request, res: Response, next: NextFunction) {
+  try {
+    const invoice = await invoicesService.unvoidInvoice(req.user!.userId, req.params.id);
+    res.json(successResponse(invoice, "Invoice restored successfully"));
+  } catch (error) {
+    next(error);
+  }
+}

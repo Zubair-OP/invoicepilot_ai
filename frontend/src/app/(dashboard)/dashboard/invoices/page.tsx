@@ -144,7 +144,9 @@ export default function InvoicesPage() {
                         {inv.invoiceNumber}
                       </Link>
                     </td>
-                    <td className="py-3 px-4 text-gray-600">{inv.customer?.name || "—"}</td>
+                    <td className="py-3 px-4 text-gray-600">
+                      {((typeof inv.customerId === "object" && inv.customerId !== null ? (inv.customerId as any).name : inv.customer?.name) || "—")}
+                    </td>
                     <td className="py-3 px-4 text-gray-500 hidden sm:table-cell">{formatDate(inv.issuedAt)}</td>
                     <td className="py-3 px-4">
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(inv.status)}`}>

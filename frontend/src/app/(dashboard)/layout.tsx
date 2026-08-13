@@ -7,6 +7,38 @@ import { UserButton } from "@clerk/nextjs";
 import Sidebar from "@/components/layout/Sidebar";
 import Loading from "@/components/ui/Loading";
 
+function getPageTitle(pathname: string): string {
+  const segments = pathname.split("/").filter(Boolean);
+  if (segments.length === 0 || segments[0] !== "dashboard") return "Dashboard";
+  if (segments.length === 1) return "Dashboard";
+
+  const section = segments[1];
+  if (section === "invoices") {
+    if (segments[2] === "new") return "New Invoice";
+    if (segments.length >= 3) return "Invoice Details";
+    return "Invoices";
+  }
+  if (section === "customers") {
+    if (segments[2] === "new") return "New Customer";
+    if (segments.length >= 3) return "Customer Details";
+    return "Customers";
+  }
+  if (section === "templates") return "Templates";
+  if (section === "settings") return "Settings";
+  if (section === "billing") return "Billing & Plans";
+  if (section === "admin") {
+    if (segments[2] === "users") return "User Management";
+    if (segments[2] === "analytics") return "Admin Analytics";
+    return "Admin";
+  }
+
+  const last = segments[segments.length - 1];
+  if (/^[0-9a-fA-F]{24}$/.test(last)) {
+    return `${section.charAt(0).toUpperCase() + section.slice(1)} Details`;
+  }
+  return last.replace(/-/g, " ");
+}
+
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -38,7 +70,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     );
   }
 
-  const pageTitle = pathname?.split("/").filter(Boolean).pop() || "Dashboard";
+  const pageTitle = getPageTitle(pathname || "");
 
   return (
     <div className="min-h-screen flex bg-gray-50">

@@ -16,14 +16,46 @@ Business context:
 - Default tax components: ${formatTaxComponents(settings.defaultTaxComponents)}
 - Today's date: ${today}
 
+REQUIRED JSON OUTPUT SCHEMA (you MUST always return this exact structure):
+{
+  "customerName": "string (required)",
+  "items": [
+    {
+      "description": "string (required)",
+      "quantity": number (required, positive),
+      "unitPrice": number (required, non-negative)
+    }
+  ],
+  "currency": "USD",
+  "taxComponents": [
+    { "name": "Tax Name", "rate": 18 }
+  ],
+  "discount": 0,
+  "dueDate": "YYYY-MM-DD",
+  "notes": "string"
+}
+
+EXAMPLE — Input: "Invoice Acme Corp for 3 hours of consulting at $100/hr, 10% GST, due in 7 days"
+EXAMPLE — Output:
+{
+  "customerName": "Acme Corp",
+  "items": [{ "description": "Consulting Services", "quantity": 3, "unitPrice": 100 }],
+  "currency": "${settings.defaultCurrency}",
+  "taxComponents": [{ "name": "GST", "rate": 10 }],
+  "discount": 0,
+  "dueDate": "${new Date(Date.now() + 7 * 864e5).toISOString().split("T")[0]}",
+  "notes": ""
+}
+
 Rules:
-1. Parse the user's description and extract: customer name, line items (description/quantity/unitPrice), currency, tax components, discount, due date
-2. For "due in N days", compute dueDate as today + N days
-3. Return ONLY valid JSON matching the expected schema
-4. Never invent amounts — return only rate and let the server compute tax amounts
-5. If the currency is omitted, use ${settings.defaultCurrency}
-6. If tax is omitted, use the default tax components above
-7. Customer name is required — if unclear, use "Unknown Customer"`;
+1. The "items" field is REQUIRED and must ALWAYS be a non-empty array — never omit it
+2. Each item must have description (string), quantity (positive number), and unitPrice (non-negative number)
+3. Return ONLY valid JSON — no extra text, no markdown, no code blocks
+4. Never invent amounts — return only tax rate and let the server compute tax amounts
+5. If currency is omitted, use ${settings.defaultCurrency}
+6. If tax is omitted, use the default tax components above (if any), otherwise set taxComponents to []
+7. customerName is required — if unclear, use "Unknown Customer"
+8. dueDate must be in YYYY-MM-DD format or omit the field entirely`;
 }
 
 function formatTaxComponents(components: ITaxComponent[]): string {

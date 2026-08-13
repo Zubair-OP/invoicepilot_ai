@@ -33,17 +33,17 @@ export function formatDateTime(date: string): string {
 export function getStatusColor(status: string): string {
   switch (status) {
     case "DRAFT":
-      return "bg-gray-100 text-gray-700";
+      return "bg-slate-100 text-slate-600 border border-slate-300";
     case "SENT":
-      return "bg-blue-100 text-blue-700";
+      return "bg-blue-100 text-blue-700 border border-blue-300";
     case "PAID":
-      return "bg-green-100 text-green-700";
+      return "bg-emerald-100 text-emerald-700 border border-emerald-300";
     case "OVERDUE":
-      return "bg-red-100 text-red-700";
+      return "bg-red-100 text-red-700 border border-red-300";
     case "CANCELLED":
-      return "bg-orange-100 text-orange-700";
+      return "bg-orange-100 text-orange-600 border border-orange-300 line-through";
     default:
-      return "bg-gray-100 text-gray-700";
+      return "bg-gray-100 text-gray-700 border border-gray-200";
   }
 }
 

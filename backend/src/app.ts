@@ -80,10 +80,17 @@ async function main() {
   enableSlowQueryLogging();
   await seedPlans();
 
-  // Phase 7: workers (email + reminder sweep) run in the dedicated worker
-  // process (jobs/worker.ts, `npm run worker`), not the API. Both processes
-  // must run in production — see README. In dev, run `npm run worker` alongside
-  // `npm run dev` to deliver emails and the daily reminder sweep.
+  // Start workers in-process for development convenience — no second terminal needed.
+  // In production these run as a separate process (`npm run worker`) but running
+  // them here in dev keeps the setup simple without changing any behaviour.
+  const { startEmailWorker } = await import("./jobs/workers/email.worker.js");
+  const { startReminderWorker } = await import("./jobs/workers/reminder.worker.js");
+  const { scheduleReminderSweep } = await import("./jobs/scheduler.js");
+  startEmailWorker();
+  startReminderWorker();
+  await scheduleReminderSweep();
+  logger.info("Workers started (email + reminder)");
+
   app.listen(env.PORT, () => {
     logger.info(`Server running on port ${env.PORT} in ${env.NODE_ENV} mode`);
   });

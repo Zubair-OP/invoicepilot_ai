@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Send, DollarSign, Download, Mail, FileText, Trash2, Printer } from "lucide-react";
+import { ArrowLeft, Send, DollarSign, Download, Mail, FileText, Trash2, Printer, Ban } from "lucide-react";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Loading from "@/components/ui/Loading";
@@ -46,8 +46,16 @@ export default function InvoiceDetailPage() {
           await api.sendInvoiceEmail(invoice!._id);
           alert("Invoice sent via email!");
           break;
+        case "void":
+          if (!confirm(`Are you sure you want to void invoice ${invoice!.invoiceNumber}?\n\nThis will mark it as CANCELLED. You can restore it later if needed.`)) return;
+          await api.voidInvoice(invoice!._id);
+          break;
+        case "unvoid":
+          if (!confirm(`Restore invoice ${invoice!.invoiceNumber} back to its previous status?`)) return;
+          await api.unvoidInvoice(invoice!._id);
+          break;
         case "delete":
-          if (!confirm("Delete this invoice?")) return;
+          if (!confirm("Permanently delete this draft invoice? This cannot be undone.")) return;
           await api.deleteInvoice(invoice!._id);
           router.push("/dashboard/invoices");
           return;
@@ -83,47 +91,81 @@ export default function InvoiceDetailPage() {
         </div>
       </div>
 
-      {/* Actions */}
+      {/* Actions — shown only based on invoice status */}
       <Card>
-        <div className="flex flex-wrap gap-2">
-          {invoice.status === "DRAFT" && (
-            <Button onClick={() => handleAction("send")} disabled={actionLoading}>
-              <Send className="w-4 h-4 mr-2" />
-              Send Invoice
+        <div className="flex flex-wrap gap-2 items-center">
+
+          {/* ── DRAFT: send email (marks as SENT), download, delete ── */}
+          {invoice.status === "DRAFT" && (<>
+            <Button onClick={() => handleAction("email")} disabled={actionLoading}>
+              <Mail className="w-4 h-4 mr-2" />
+              Send via Email
             </Button>
-          )}
-          {invoice.status !== "PAID" && (
-            <Button variant="outline" onClick={() => handleAction("pay")} disabled={actionLoading}>
-              <DollarSign className="w-4 h-4 mr-2" />
-              Mark as Paid
+            <a href={`${process.env.NEXT_PUBLIC_API_URL}/invoices/${invoice._id}/pdf`} target="_blank" rel="noopener noreferrer">
+              <Button variant="outline"><Download className="w-4 h-4 mr-2" />Download PDF</Button>
+            </a>
+            <Button variant="outline" onClick={() => window.print()}>
+              <Printer className="w-4 h-4 mr-2" />Print
             </Button>
-          )}
-          <a
-            href={`${process.env.NEXT_PUBLIC_API_URL}/invoices/${invoice._id}/pdf`}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Button variant="outline">
-              <Download className="w-4 h-4 mr-2" />
-              Download PDF
-            </Button>
-          </a>
-          <Button variant="outline" onClick={() => handleAction("email")} disabled={actionLoading}>
-            <Mail className="w-4 h-4 mr-2" />
-            Send via Email
-          </Button>
-          <Button variant="outline" onClick={() => window.print()}>
-            <Printer className="w-4 h-4 mr-2" />
-            Print
-          </Button>
-          {invoice.status === "DRAFT" && (
             <Button variant="danger" onClick={() => handleAction("delete")} disabled={actionLoading}>
-              <Trash2 className="w-4 h-4 mr-2" />
-              Delete
+              <Trash2 className="w-4 h-4 mr-2" />Delete Draft
             </Button>
-          )}
+          </>)}
+
+          {/* ── SENT / OVERDUE: can pay, resend email, download, void ── */}
+          {(invoice.status === "SENT" || invoice.status === "OVERDUE") && (<>
+            <Button onClick={() => handleAction("pay")} disabled={actionLoading}>
+              <DollarSign className="w-4 h-4 mr-2" />Mark as Paid
+            </Button>
+            <Button variant="outline" onClick={() => handleAction("email")} disabled={actionLoading}>
+              <Mail className="w-4 h-4 mr-2" />
+              {invoice.status === "OVERDUE" ? "Send Reminder" : "Resend Email"}
+            </Button>
+            <a href={`${process.env.NEXT_PUBLIC_API_URL}/invoices/${invoice._id}/pdf`} target="_blank" rel="noopener noreferrer">
+              <Button variant="outline"><Download className="w-4 h-4 mr-2" />Download PDF</Button>
+            </a>
+            <Button variant="outline" onClick={() => window.print()}>
+              <Printer className="w-4 h-4 mr-2" />Print
+            </Button>
+            <Button variant="danger" onClick={() => handleAction("void")} disabled={actionLoading}>
+              <Ban className="w-4 h-4 mr-2" />Void Invoice
+            </Button>
+          </>)}
+
+          {/* ── PAID: download & void only — no email, no re-pay ── */}
+          {invoice.status === "PAID" && (<>
+            <a href={`${process.env.NEXT_PUBLIC_API_URL}/invoices/${invoice._id}/pdf`} target="_blank" rel="noopener noreferrer">
+              <Button variant="outline"><Download className="w-4 h-4 mr-2" />Download PDF</Button>
+            </a>
+            <Button variant="outline" onClick={() => window.print()}>
+              <Printer className="w-4 h-4 mr-2" />Print
+            </Button>
+            <Button variant="danger" onClick={() => handleAction("void")} disabled={actionLoading}>
+              <Ban className="w-4 h-4 mr-2" />Void Invoice
+            </Button>
+          </>)}
+
+          {/* ── CANCELLED: show restore button prominently + download ── */}
+          {invoice.status === "CANCELLED" && (<>
+            <span className="text-sm text-orange-600 font-medium mr-2">⚠ This invoice has been voided</span>
+            <Button
+              onClick={() => handleAction("unvoid")}
+              disabled={actionLoading}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+            >
+              ↩ Restore Invoice
+            </Button>
+            <a href={`${process.env.NEXT_PUBLIC_API_URL}/invoices/${invoice._id}/pdf`} target="_blank" rel="noopener noreferrer">
+              <Button variant="outline"><Download className="w-4 h-4 mr-2" />Download PDF</Button>
+            </a>
+            <Button variant="outline" onClick={() => window.print()}>
+              <Printer className="w-4 h-4 mr-2" />Print
+            </Button>
+          </>)}
+
         </div>
       </Card>
+
 
       {/* Invoice Preview */}
       <Card className="print:shadow-none print:border-none">
@@ -146,12 +188,21 @@ export default function InvoiceDetailPage() {
           </div>
 
           {/* Bill To */}
-          <div className="mb-8">
-            <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Bill To</p>
-            <p className="font-semibold text-gray-900">{invoice.customer?.name || "—"}</p>
-            {invoice.customer?.email && <p className="text-sm text-gray-600">{invoice.customer.email}</p>}
-            {invoice.customer?.address && <p className="text-sm text-gray-600">{invoice.customer.address}</p>}
-          </div>
+          {(() => {
+            const customer = (typeof invoice.customerId === "object" && invoice.customerId !== null
+              ? invoice.customerId
+              : invoice.customer) as any;
+
+            return (
+              <div className="mb-8">
+                <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Bill To</p>
+                <p className="font-semibold text-gray-900 text-base">{customer?.name || "—"}</p>
+                {customer?.email && <p className="text-sm text-gray-600">{customer.email}</p>}
+                {customer?.phone && <p className="text-sm text-gray-600">{customer.phone}</p>}
+                {customer?.address && <p className="text-sm text-gray-600">{customer.address}</p>}
+              </div>
+            );
+          })()}
 
           {/* Items Table */}
           <table className="w-full text-sm mb-8">
@@ -165,15 +216,18 @@ export default function InvoiceDetailPage() {
               </tr>
             </thead>
             <tbody>
-              {invoice.items.map((item, i) => (
-                <tr key={i} className="border-b border-gray-100">
-                  <td className="py-3 px-4 text-gray-500">{i + 1}</td>
-                  <td className="py-3 px-4 text-gray-900">{item.description}</td>
-                  <td className="py-3 px-4 text-right text-gray-600">{item.quantity}</td>
-                  <td className="py-3 px-4 text-right text-gray-600">{formatCurrency(item.unitPrice, invoice.currency)}</td>
-                  <td className="py-3 px-4 text-right font-medium text-gray-900">{formatCurrency(item.amount, invoice.currency)}</td>
-                </tr>
-              ))}
+              {invoice.items.map((item: any, i: number) => {
+                const itemAmount = item.total ?? item.amount ?? (item.quantity * item.unitPrice);
+                return (
+                  <tr key={i} className="border-b border-gray-100">
+                    <td className="py-3 px-4 text-gray-500">{i + 1}</td>
+                    <td className="py-3 px-4 text-gray-900">{item.description}</td>
+                    <td className="py-3 px-4 text-right text-gray-600">{item.quantity}</td>
+                    <td className="py-3 px-4 text-right text-gray-600">{formatCurrency(item.unitPrice, invoice.currency)}</td>
+                    <td className="py-3 px-4 text-right font-medium text-gray-900">{formatCurrency(itemAmount, invoice.currency)}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
 

@@ -159,8 +159,39 @@ export async function update(userId: string, invoiceId: string, data: UpdateInvo
 export async function remove(userId: string, invoiceId: string) {
   const invoice = await Invoice.findOne({ _id: invoiceId, userId });
   if (!invoice) throw new NotFoundError("Invoice");
-  if (invoice.status === "PAID") throw new ConflictError("Cannot delete a paid invoice");
+  // Only DRAFT invoices can be physically deleted — all others must be voided
+  // to preserve the audit trail (sent invoices are legal records).
+  if (invoice.status !== "DRAFT") {
+    throw new ConflictError("Only draft invoices can be deleted. Use Void for sent/paid invoices.");
+  }
   await invoice.deleteOne();
+}
+
+/**
+ * Voids an invoice: marks it CANCELLED without deleting any data.
+ * Voided invoices remain visible in the list for audit purposes.
+ * Any status except DRAFT can be voided (DRAFT should just be deleted).
+ */
+export async function voidInvoice(userId: string, invoiceId: string) {
+  const invoice = await Invoice.findOne({ _id: invoiceId, userId });
+  if (!invoice) throw new NotFoundError("Invoice");
+  if (invoice.status === "CANCELLED") throw new ConflictError("Invoice is already voided");
+  invoice.status = "CANCELLED";
+  await invoice.save();
+  return invoice;
+}
+
+/**
+ * Restores a voided (CANCELLED) invoice back to its previous status.
+ * If paidAt exists → PAID, otherwise → SENT.
+ */
+export async function unvoidInvoice(userId: string, invoiceId: string) {
+  const invoice = await Invoice.findOne({ _id: invoiceId, userId });
+  if (!invoice) throw new NotFoundError("Invoice");
+  if (invoice.status !== "CANCELLED") throw new ConflictError("Only voided invoices can be restored");
+  invoice.status = invoice.paidAt ? "PAID" : "SENT";
+  await invoice.save();
+  return invoice;
 }
 
 export async function markAsSent(userId: string, invoiceId: string) {

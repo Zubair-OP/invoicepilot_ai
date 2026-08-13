@@ -36,7 +36,13 @@ const envSchema = z.object({
   GROQ_API_KEY: z.string().optional(),
 
   RESEND_API_KEY: z.string().optional(),
-  EMAIL_FROM: z.string().default("InvoicePilot <onboarding@resend.dev>"),
+
+  // Nodemailer / SMTP credentials (used instead of Resend when set)
+  SMTP_HOST: z.string().default("smtp.gmail.com"),
+  SMTP_PORT: z.coerce.number().default(587),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASS: z.string().optional(),
+  EMAIL_FROM: z.string().optional(),
 
   MAX_FILE_SIZE_MB: z.coerce.number().default(10),
 

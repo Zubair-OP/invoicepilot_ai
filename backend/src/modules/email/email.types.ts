@@ -21,5 +21,5 @@ export const EMAIL_QUEUE_JOB_NAME = "send-invoice-email";
  * later resend is allowed again.
  */
 export function buildEmailJobId(invoiceId: string, type: EmailType, to: string): string {
-  return `email:${invoiceId}:${type}:${to.toLowerCase()}`;
+  return `email_${invoiceId}_${type}_${to.toLowerCase()}`;
 }

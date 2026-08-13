@@ -181,7 +181,6 @@ const faqs = [
 
 export default function LandingPage() {
   const [activeDemo, setActiveDemo] = useState(0);
-  const [isAnnual, setIsAnnual] = useState(true);
   const [openFaq, setOpenFaq] = useState<number | null>(0);
   const [faqSpotlight, setFaqSpotlight] = useState(false);
 
@@ -497,29 +496,6 @@ export default function LandingPage() {
             <p className="text-base sm:text-lg text-slate-600 mb-8">
               Start completely free. Upgrade when your invoice volume accelerates.
             </p>
-
-            {/* Monthly / Annual Toggle */}
-            <div className="inline-flex items-center gap-3 bg-slate-100 p-1.5 rounded-full border border-slate-200/80 shadow-xs">
-              <button
-                onClick={() => setIsAnnual(false)}
-                className={`px-4 py-1.5 text-xs sm:text-sm font-bold rounded-full transition-all duration-200 cursor-pointer active:scale-95 ${
-                  !isAnnual ? "bg-white text-slate-900 shadow-xs" : "text-slate-600 hover:text-slate-900"
-                }`}
-              >
-                Monthly Billing
-              </button>
-              <button
-                onClick={() => setIsAnnual(true)}
-                className={`px-4 py-1.5 text-xs sm:text-sm font-bold rounded-full transition-all duration-200 flex items-center gap-1.5 cursor-pointer active:scale-95 ${
-                  isAnnual ? "bg-emerald-600 text-white shadow-xs" : "text-slate-600 hover:text-slate-900"
-                }`}
-              >
-                Annual Billing
-                <span className="px-1.5 py-0.2 bg-emerald-100 text-emerald-800 text-[10px] font-extrabold rounded-md uppercase">
-                  Save 20%
-                </span>
-              </button>
-            </div>
           </div>
 
           <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto items-stretch">
@@ -568,7 +544,7 @@ export default function LandingPage() {
                 <p className="text-xs sm:text-sm text-emerald-300/80 mb-5">For active freelancers & boutique studios</p>
                 <div className="mb-6 pb-6 border-b border-slate-800">
                   <span className="text-4xl font-extrabold text-white">
-                    {isAnnual ? "$15" : "$19"}
+                    $19
                   </span>
                   <span className="text-slate-400 text-xs sm:text-sm font-medium"> / month</span>
                 </div>
@@ -609,7 +585,7 @@ export default function LandingPage() {
                 <p className="text-xs sm:text-sm text-slate-500 mb-5">For agencies, startups, & enterprises</p>
                 <div className="mb-6 pb-6 border-b border-slate-200/80">
                   <span className="text-4xl font-extrabold text-slate-900">
-                    {isAnnual ? "$39" : "$49"}
+                    $49
                   </span>
                   <span className="text-slate-500 text-xs sm:text-sm font-medium"> / month</span>
                 </div>

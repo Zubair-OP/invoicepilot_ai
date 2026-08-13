@@ -183,14 +183,22 @@ async function buildDraft(
 ): Promise<InvoiceDraft> {
   const { customerName, items, currency, taxComponents, discount, dueDate, notes } = output;
 
-  // Customer resolution: fuzzy-match (case-insensitive) against existing customers
-  // scoped by userId. Return matched customerId or a suggestedCustomer.
-  const customer = await Customer.findOne({
+  // Customer resolution: match case-insensitive exact, then fallback to partial substring match
+  let customer = await Customer.findOne({
     userId,
     name: { $regex: new RegExp(`^${escapeRegex(customerName)}$`, "i") },
   })
     .select("_id name")
     .lean();
+
+  if (!customer && customerName.trim()) {
+    customer = await Customer.findOne({
+      userId,
+      name: { $regex: escapeRegex(customerName.trim()), $options: "i" },
+    })
+      .select("_id name")
+      .lean();
+  }
 
   return {
     customerId: customer?._id.toString(),

@@ -28,6 +28,8 @@ router.patch("/:id", strictLimiter, validate(updateInvoiceSchema), invoicesContr
 router.delete("/:id", strictLimiter, invoicesController.remove);
 router.patch("/:id/send", strictLimiter, invoicesController.markAsSent);
 router.patch("/:id/pay", strictLimiter, invoicesController.markAsPaid);
+router.patch("/:id/void", strictLimiter, invoicesController.voidInvoice);
+router.patch("/:id/unvoid", strictLimiter, invoicesController.unvoidInvoice);
 
 // PDF generation (Phase 5). Rendered on demand from current invoice data.
 router.get("/:id/pdf", strictLimiter, pdfController.downloadPDF);

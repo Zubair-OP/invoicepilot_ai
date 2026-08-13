@@ -1,4 +1,4 @@
-export { sendEmail, type SendEmailParams, type EmailAttachment } from "./resend.js";
+export { sendEmail, type SendEmailParams, type EmailAttachment } from "./nodemailer.js";
 export {
   renderEmail,
   paymentFailedEmail,
