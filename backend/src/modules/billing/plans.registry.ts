@@ -34,7 +34,7 @@ export const PLANS: readonly PlanDefinition[] = [
     limits: {
       invoicesPerMonth: 5,
       customers: 10,
-      aiGenerationsPerMonth: 10,
+      aiGenerationsPerMonth: 5,
       templatesAllowed: ["classic"],
     },
     priceMonthly: 0,
@@ -48,7 +48,7 @@ export const PLANS: readonly PlanDefinition[] = [
       invoicesPerMonth: 100,
       customers: -1,
       aiGenerationsPerMonth: 200,
-      templatesAllowed: ["classic", "modern", "minimal"],
+      templatesAllowed: ["classic", "modern"],
     },
     priceMonthly: 19,
   },

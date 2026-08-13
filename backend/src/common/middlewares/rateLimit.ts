@@ -74,11 +74,13 @@ export class RedisRateLimitStore implements Store {
     if (Date.now() < this.unavailableUntil) {
       throw new Error("rate limit store unavailable");
     }
-    if (this.client.status === "ready") return;
+    if (this.client.status === "ready" || this.client.status === "connecting" || this.client.status === "connect") return;
 
     try {
       await this.client.connect();
     } catch (error) {
+      // If error is because client is already connecting, ignore it
+      if ((error as Error)?.message?.includes("already connecting")) return;
       this.unavailableUntil = Date.now() + STORE_UNKNOWN_KEY_COOLDOWN_MS;
       throw error;
     }

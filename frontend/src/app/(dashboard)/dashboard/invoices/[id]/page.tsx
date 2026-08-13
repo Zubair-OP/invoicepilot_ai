@@ -18,6 +18,7 @@ export default function InvoiceDetailPage() {
   const router = useRouter();
   const { toast, confirmModal } = useToast();
   const [invoice, setInvoice] = useState<Invoice | null>(null);
+  const [templateId, setTemplateId] = useState<string>("classic");
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
 
@@ -25,8 +26,14 @@ export default function InvoiceDetailPage() {
     async function load() {
       try {
         const { api } = await import("@/lib/api");
-        const res = await api.getInvoice(params.id as string);
-        if (res.success) setInvoice(res.data);
+        const [invRes, settingsRes] = await Promise.all([
+          api.getInvoice(params.id as string),
+          api.getSettings(),
+        ]);
+        if (invRes.success) setInvoice(invRes.data);
+        if (settingsRes.success && settingsRes.data?.templateId) {
+          setTemplateId(settingsRes.data.templateId);
+        }
       } catch {} finally {
         setLoading(false);
       }
@@ -215,25 +222,65 @@ export default function InvoiceDetailPage() {
       </Card>
 
 
-      {/* Invoice Preview */}
+      {/* Invoice Preview (Dynamically styled by selected template) */}
       <Card className="print:shadow-none print:border-none">
-        <div className="bg-white p-8 border border-gray-200 rounded-lg">
+        <div className={`p-8 rounded-xl border transition-all duration-300 ${
+          templateId === "modern"
+            ? "bg-white border-indigo-100 shadow-sm"
+            : templateId === "minimal"
+            ? "bg-white border-slate-300 shadow-none font-mono text-slate-900"
+            : "bg-white border-gray-200"
+        }`}>
           {/* Header */}
-          <div className="flex justify-between items-start mb-8">
-            <div>
-              <h1 className="text-2xl font-bold text-green-600">INVOICE</h1>
-              <p className="text-gray-500 mt-1">#{invoice.invoiceNumber}</p>
+          {templateId === "modern" ? (
+            <div className="bg-gradient-to-r from-indigo-600 to-violet-600 text-white p-6 rounded-xl flex justify-between items-start mb-8 shadow-md">
+              <div>
+                <h1 className="text-3xl font-extrabold tracking-tight">INVOICE</h1>
+                <p className="text-indigo-100 text-sm mt-0.5">#{invoice.invoiceNumber}</p>
+              </div>
+              <div className="text-right text-xs space-y-1">
+                <p className="text-indigo-100">Issued: <span className="font-semibold text-white">{formatDate(invoice.issuedAt)}</span></p>
+                {invoice.dueDate && (
+                  <p className="text-indigo-100">Due: <span className="font-semibold text-white">{formatDate(invoice.dueDate)}</span></p>
+                )}
+                {invoice.paidAt && (
+                  <p className="text-emerald-300 font-bold">Paid: {formatDate(invoice.paidAt)}</p>
+                )}
+              </div>
             </div>
-            <div className="text-right">
-              <p className="text-sm text-gray-500">Date: {formatDate(invoice.issuedAt)}</p>
-              {invoice.dueDate && (
-                <p className="text-sm text-gray-500">Due: {formatDate(invoice.dueDate)}</p>
-              )}
-              {invoice.paidAt && (
-                <p className="text-sm text-green-600">Paid: {formatDate(invoice.paidAt)}</p>
-              )}
+          ) : templateId === "minimal" ? (
+            <div className="flex justify-between items-end border-b-2 border-slate-900 pb-4 mb-8">
+              <div>
+                <h1 className="text-2xl font-black tracking-widest text-slate-900">INVOICE</h1>
+                <p className="text-xs text-slate-500 mt-1">NO: {invoice.invoiceNumber}</p>
+              </div>
+              <div className="text-right text-xs space-y-1 text-slate-600">
+                <p>DATE: <span className="font-bold text-slate-900">{formatDate(invoice.issuedAt)}</span></p>
+                {invoice.dueDate && (
+                  <p>DUE: <span className="font-bold text-slate-900">{formatDate(invoice.dueDate)}</span></p>
+                )}
+                {invoice.paidAt && (
+                  <p className="font-bold text-slate-900">PAID: {formatDate(invoice.paidAt)}</p>
+                )}
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="flex justify-between items-start mb-8">
+              <div>
+                <h1 className="text-2xl font-bold text-green-600">INVOICE</h1>
+                <p className="text-gray-500 mt-1">#{invoice.invoiceNumber}</p>
+              </div>
+              <div className="text-right text-sm">
+                <p className="text-gray-500">Date: {formatDate(invoice.issuedAt)}</p>
+                {invoice.dueDate && (
+                  <p className="text-gray-500">Due: {formatDate(invoice.dueDate)}</p>
+                )}
+                {invoice.paidAt && (
+                  <p className="text-green-600 font-semibold">Paid: {formatDate(invoice.paidAt)}</p>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Bill To */}
           {(() => {
@@ -242,9 +289,15 @@ export default function InvoiceDetailPage() {
               : invoice.customer) as any;
 
             return (
-              <div className="mb-8">
-                <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Bill To</p>
-                <p className="font-semibold text-gray-900 text-base">{customer?.name || "—"}</p>
+              <div className={`mb-8 p-4 rounded-lg ${
+                templateId === "modern"
+                  ? "bg-indigo-50/50 border border-indigo-100"
+                  : templateId === "minimal"
+                  ? "border border-slate-200 bg-slate-50/50"
+                  : "border-0"
+              }`}>
+                <p className="text-xs text-gray-400 uppercase tracking-wider mb-1 font-semibold">Bill To</p>
+                <p className="font-bold text-gray-900 text-base">{customer?.name || "—"}</p>
                 {customer?.email && <p className="text-sm text-gray-600">{customer.email}</p>}
                 {customer?.phone && <p className="text-sm text-gray-600">{customer.phone}</p>}
                 {customer?.address && <p className="text-sm text-gray-600">{customer.address}</p>}
@@ -255,24 +308,30 @@ export default function InvoiceDetailPage() {
           {/* Items Table */}
           <table className="w-full text-sm mb-8">
             <thead>
-              <tr className="bg-green-600 text-white">
-                <th className="text-left py-2 px-4 rounded-l-lg">#</th>
-                <th className="text-left py-2 px-4">Description</th>
-                <th className="text-right py-2 px-4">Qty</th>
-                <th className="text-right py-2 px-4">Rate</th>
-                <th className="text-right py-2 px-4 rounded-r-lg">Amount</th>
+              <tr className={
+                templateId === "modern"
+                  ? "bg-indigo-50 text-indigo-950 font-bold border-b border-indigo-100"
+                  : templateId === "minimal"
+                  ? "border-b-2 border-slate-900 text-slate-900 font-bold text-xs uppercase"
+                  : "bg-green-600 text-white"
+              }>
+                <th className="text-left py-2.5 px-4 rounded-l-lg">#</th>
+                <th className="text-left py-2.5 px-4">Description</th>
+                <th className="text-right py-2.5 px-4">Qty</th>
+                <th className="text-right py-2.5 px-4">Rate</th>
+                <th className="text-right py-2.5 px-4 rounded-r-lg">Amount</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-gray-100">
               {invoice.items.map((item: any, i: number) => {
                 const itemAmount = item.total ?? item.amount ?? (item.quantity * item.unitPrice);
                 return (
-                  <tr key={i} className="border-b border-gray-100">
+                  <tr key={i} className={templateId === "modern" ? "hover:bg-indigo-50/20" : "hover:bg-gray-50"}>
                     <td className="py-3 px-4 text-gray-500">{i + 1}</td>
-                    <td className="py-3 px-4 text-gray-900">{item.description}</td>
+                    <td className="py-3 px-4 text-gray-900 font-medium">{item.description}</td>
                     <td className="py-3 px-4 text-right text-gray-600">{item.quantity}</td>
                     <td className="py-3 px-4 text-right text-gray-600">{formatCurrency(item.unitPrice, invoice.currency)}</td>
-                    <td className="py-3 px-4 text-right font-medium text-gray-900">{formatCurrency(itemAmount, invoice.currency)}</td>
+                    <td className="py-3 px-4 text-right font-bold text-gray-900">{formatCurrency(itemAmount, invoice.currency)}</td>
                   </tr>
                 );
               })}
@@ -281,10 +340,16 @@ export default function InvoiceDetailPage() {
 
           {/* Totals */}
           <div className="flex justify-end">
-            <div className="w-64 space-y-2">
+            <div className={`w-72 space-y-2 p-4 rounded-xl ${
+              templateId === "modern"
+                ? "bg-indigo-50/50 border border-indigo-100"
+                : templateId === "minimal"
+                ? "border border-slate-300"
+                : "bg-gray-50 border border-gray-100"
+            }`}>
               <div className="flex justify-between text-sm">
                 <span className="text-gray-500">Subtotal</span>
-                <span>{formatCurrency(invoice.subtotal, invoice.currency)}</span>
+                <span className="font-semibold">{formatCurrency(invoice.subtotal, invoice.currency)}</span>
               </div>
               {invoice.taxComponents.map((tax, i) => (
                 <div key={i} className="flex justify-between text-sm">
@@ -295,12 +360,18 @@ export default function InvoiceDetailPage() {
               {invoice.discount > 0 && (
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500">Discount</span>
-                  <span className="text-red-600">-{formatCurrency(invoice.discount, invoice.currency)}</span>
+                  <span className="text-red-600 font-medium">-{formatCurrency(invoice.discount, invoice.currency)}</span>
                 </div>
               )}
-              <div className="pt-2 border-t border-gray-200 flex justify-between font-bold text-lg">
+              <div className={`pt-2 border-t flex justify-between font-extrabold text-lg ${
+                templateId === "modern"
+                  ? "border-indigo-200 text-indigo-700"
+                  : templateId === "minimal"
+                  ? "border-slate-900 text-slate-900"
+                  : "border-gray-200 text-green-600"
+              }`}>
                 <span>Total</span>
-                <span className="text-green-600">{formatCurrency(invoice.total, invoice.currency)}</span>
+                <span>{formatCurrency(invoice.total, invoice.currency)}</span>
               </div>
             </div>
           </div>
@@ -308,7 +379,7 @@ export default function InvoiceDetailPage() {
           {/* Notes */}
           {invoice.notes && (
             <div className="mt-8 pt-6 border-t border-gray-200">
-              <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Notes</p>
+              <p className="text-xs text-gray-400 uppercase tracking-wider mb-1 font-semibold">Notes</p>
               <p className="text-sm text-gray-600">{invoice.notes}</p>
             </div>
           )}

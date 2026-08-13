@@ -1,23 +1,70 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api/v1";
 
+async function waitForClerkSession(timeoutMs = 4000): Promise<any> {
+  if (typeof window === "undefined") return null;
+
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    const win = window as unknown as { Clerk?: any };
+    if (win.Clerk?.session) {
+      return win.Clerk.session;
+    }
+    // If Clerk explicitly finished loading and there's no user signed in
+    if (win.Clerk?.loaded && !win.Clerk.session) {
+      return null;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+
+  const win = window as unknown as { Clerk?: any };
+  return win.Clerk?.session || null;
+}
+
+async function getToken(): Promise<string | null> {
+  if (typeof window === "undefined") return null;
+  try {
+    const session = await waitForClerkSession();
+    if (session && typeof session.getToken === "function") {
+      return await session.getToken();
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 async function fetchApi<T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<T> {
   const token = await getToken();
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    ...((options.headers as Record<string, string>) || {}),
+  
+  const buildHeaders = (t: string | null) => {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      ...((options.headers as Record<string, string>) || {}),
+    };
+    if (t) {
+      headers["Authorization"] = `Bearer ${t}`;
+    }
+    return headers;
   };
 
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
-  }
-
-  const response = await fetch(`${API_BASE}${endpoint}`, {
+  let response = await fetch(`${API_BASE}${endpoint}`, {
     ...options,
-    headers,
+    headers: buildHeaders(token),
   });
+
+  // If unauthorized, retry once with fresh token in case Clerk session just initialized
+  if (response.status === 401) {
+    const retryToken = await getToken();
+    if (retryToken) {
+      response = await fetch(`${API_BASE}${endpoint}`, {
+        ...options,
+        headers: buildHeaders(retryToken),
+      });
+    }
+  }
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ message: "Request failed" }));
@@ -25,19 +72,6 @@ async function fetchApi<T>(
   }
 
   return response.json();
-}
-
-async function getToken(): Promise<string | null> {
-  if (typeof window === "undefined") return null;
-  try {
-    const clerk = (window as unknown as { Clerk?: { session?: { getToken: () => Promise<string | null> } } }).Clerk;
-    if (clerk?.session) {
-      return await clerk.session.getToken();
-    }
-    return null;
-  } catch {
-    return null;
-  }
 }
 
 export const api = {

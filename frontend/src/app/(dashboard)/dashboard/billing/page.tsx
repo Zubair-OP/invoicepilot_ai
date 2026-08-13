@@ -95,27 +95,54 @@ export default function BillingPage() {
         </Card>
       )}
 
-      {/* Usage */}
+      {/* Usage Overview */}
       {billing && (
         <Card>
-          <h3 className="font-semibold text-gray-900 mb-4">Usage</h3>
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="font-bold text-gray-900">Current Period Usage</h3>
+              <p className="text-xs text-gray-500 mt-0.5">Track your monthly plan consumption</p>
+            </div>
+          </div>
           <div className="grid sm:grid-cols-3 gap-4">
-            {Object.entries(billing.usage).map(([key, usage]) => (
-              <div key={key} className="p-4 bg-gray-50 rounded-lg">
-                <p className="text-sm text-gray-500 capitalize">{key}</p>
-                <p className="text-lg font-bold text-gray-900">
-                  {usage.unlimited ? "Unlimited" : `${usage.usage} / ${usage.limit}`}
-                </p>
-                {!usage.unlimited && (
-                  <div className="mt-2 w-full bg-gray-200 rounded-full h-2">
-                    <div
-                      className="bg-green-600 h-2 rounded-full"
-                      style={{ width: `${Math.min((usage.usage / usage.limit) * 100, 100)}%` }}
-                    />
+            {Object.entries(billing.usage).map(([key, usage]) => {
+              const labelMap: Record<string, string> = {
+                invoices: "Invoices Created",
+                customers: "Saved Customers",
+                ai: "AI Generations",
+              };
+              const label = labelMap[key] || key;
+              const percent = usage.unlimited ? 0 : Math.min((usage.usage / usage.limit) * 100, 100);
+              const barColor = percent >= 100 ? "bg-rose-500" : percent >= 80 ? "bg-amber-500" : "bg-emerald-500";
+
+              return (
+                <div key={key} className="p-4 bg-white border border-gray-200 rounded-xl shadow-sm space-y-2">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-semibold text-gray-500">{label}</p>
+                    {!usage.unlimited && (
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                        percent >= 100 ? "bg-rose-100 text-rose-700" : "bg-gray-100 text-gray-700"
+                      }`}>
+                        {Math.round(percent)}%
+                      </span>
+                    )}
                   </div>
-                )}
-              </div>
-            ))}
+                  <p className="text-2xl font-black text-gray-900">
+                    {usage.unlimited ? "Unlimited" : `${usage.usage} / ${usage.limit}`}
+                  </p>
+                  {!usage.unlimited ? (
+                    <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
+                      <div
+                        className={`${barColor} h-2 rounded-full transition-all duration-500`}
+                        style={{ width: `${percent}%` }}
+                      />
+                    </div>
+                  ) : (
+                    <p className="text-xs text-emerald-600 font-semibold">No limits on your plan</p>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </Card>
       )}

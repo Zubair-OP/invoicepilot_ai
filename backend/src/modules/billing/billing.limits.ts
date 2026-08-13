@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import { Invoice, Customer, User } from "../../database/models/index.js";
+import { Invoice, Customer, User, AiUsage } from "../../database/models/index.js";
 import { PaymentRequiredError } from "../../common/errors/index.js";
 import { cacheGetInt, cacheSetInt, cacheIncrement, cacheDelete } from "../../common/cache/redis.js";
 import { logger } from "../../observability/logger.js";
@@ -10,13 +10,6 @@ const USAGE_CACHE_TTL_SECONDS = 10 * 60;
 const USAGE_CACHE_PREFIX = "usage:";
 
 const ALL_RESOURCES: readonly PlanLimitResource[] = ["invoicesPerMonth", "customers", "aiGenerationsPerMonth"];
-
-// Resources backed by durable documents (counted from Mongo). AI usage has no
-// document — it is counted with a Redis counter (see `countUsage`).
-const DURABLE_RESOURCES: Record<Exclude<PlanLimitResource, "aiGenerationsPerMonth">, typeof Invoice | typeof Customer> = {
-  invoicesPerMonth: Invoice,
-  customers: Customer,
-};
 
 const RESOURCE_LABELS: Record<PlanLimitResource, string> = {
   invoicesPerMonth: "invoice",
@@ -55,9 +48,12 @@ async function countUsage(resource: PlanLimitResource, userId: string, periodSta
   if (cached !== null) return cached;
 
   let count = 0;
-  if (resource !== "aiGenerationsPerMonth") {
-    const Model = DURABLE_RESOURCES[resource];
-    count = await Model.countDocuments({ userId, createdAt: { $gte: periodStart } });
+  if (resource === "invoicesPerMonth") {
+    count = await Invoice.countDocuments({ userId, createdAt: { $gte: periodStart } });
+  } else if (resource === "customers") {
+    count = await Customer.countDocuments({ userId, createdAt: { $gte: periodStart } });
+  } else if (resource === "aiGenerationsPerMonth") {
+    count = await AiUsage.countDocuments({ userId, kind: "generate", createdAt: { $gte: periodStart } });
   }
 
   await cacheSetInt(key, count, USAGE_CACHE_TTL_SECONDS);
@@ -87,13 +83,7 @@ export async function recordUsage(resource: PlanLimitResource, userId: string): 
   try {
     const { periodStart } = await getUsageContext(userId);
     const key = usageCacheKey(resource, userId, periodStart);
-    if (resource === "aiGenerationsPerMonth") {
-      // No durable document to recount — use the Redis counter directly.
-      await cacheIncrement(key, USAGE_CACHE_TTL_SECONDS);
-      return;
-    }
-    // Durable resources: drop the cached count so the next read recounts from
-    // Mongo (the document already exists — recounting is exact).
+    // Invalidate cached count so the next read recounts exactly from Mongo
     await cacheDelete(key);
   } catch (error) {
     logger.warn({ err: error, userId, resource }, "Failed to record usage");
