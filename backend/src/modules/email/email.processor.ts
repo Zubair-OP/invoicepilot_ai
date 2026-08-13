@@ -20,67 +20,70 @@ export async function processEmailJob(job: Job<EmailJobData>): Promise<void> {
 
   logger.info({ jobId: job.id, invoiceId, type, to }, "Processing email job");
 
-  // Re-load the invoice from the database — the queue only carries ids, so
-  // edits made after enqueueing (e.g. notes updated) are always reflected.
-  const invoice = await Invoice.findOne({ _id: invoiceId, userId });
-  if (!invoice) throw new NotFoundError("Invoice");
+  try {
+    // Re-load the invoice from the database
+    const invoice = await Invoice.findOne({ _id: invoiceId, userId });
+    if (!invoice) throw new NotFoundError("Invoice");
 
-  const customer = await Customer.findOne({ _id: invoice.customerId, userId });
-  if (!customer) throw new NotFoundError("Customer");
+    const customer = await Customer.findOne({ _id: invoice.customerId, userId });
+    if (!customer) throw new NotFoundError("Customer");
 
-  const user = await User.findOne({ _id: userId, deletedAt: { $exists: false } })
-    .select("settings")
-    .lean();
-  const businessName = user?.settings?.businessName ?? "InvoicePilot";
+    const user = await User.findOne({ _id: userId, deletedAt: { $exists: false } })
+      .select("name email settings")
+      .lean();
+    const businessName = user?.settings?.businessName || user?.name || "InvoicePilot";
+    const businessEmail = user?.settings?.businessEmail || user?.email;
 
-  // Generate the PDF. This can take a few seconds on a cold Playwright browser,
-  // which is why the send is async rather than inline in the controller.
-  const { pdf } = await generateInvoicePDFForUser(userId, invoiceId);
+    logger.info({ jobId: job.id, invoiceId }, "Rendering invoice PDF for email attachment");
+    const { pdf } = await generateInvoicePDFForUser(userId, invoiceId);
+    logger.info({ jobId: job.id, pdfBytes: pdf.length }, "Invoice PDF rendered successfully");
 
-  // Render the template. The caller can override subject but not the HTML body —
-  // HTML lives in code, not user input, so there's no injection risk.
-  const emailData: InvoiceEmailData = {
-    businessName,
-    customerName: customer.name,
-    invoiceNumber: invoice.invoiceNumber,
-    total: invoice.total,
-    currency: invoice.currency,
-    issuedAt: invoice.issuedAt,
-    dueDate: invoice.dueDate,
-    paidAt: invoice.paidAt,
-    message,
-  };
+    // Render the template
+    const emailData: InvoiceEmailData = {
+      businessName,
+      customerName: customer.name,
+      invoiceNumber: invoice.invoiceNumber,
+      total: invoice.total,
+      currency: invoice.currency,
+      issuedAt: invoice.issuedAt,
+      dueDate: invoice.dueDate,
+      paidAt: invoice.paidAt,
+      message,
+    };
 
-  const rendered = renderEmail(type, emailData);
+    const rendered = renderEmail(type, emailData);
 
-  await sendEmail({
-    to,
-    subject: subject ?? rendered.subject,
-    html: rendered.html,
-    text: rendered.text,
-    attachments: [{ filename: `${invoice.invoiceNumber}.pdf`, content: pdf }],
-  });
+    logger.info({ jobId: job.id, to, businessName, businessEmail }, "Dispatching email to transport");
+    await sendEmail({
+      to,
+      subject: subject ?? rendered.subject,
+      html: rendered.html,
+      text: rendered.text,
+      fromName: businessName,
+      fromEmail: businessEmail,
+      replyTo: businessEmail ? `"${businessName}" <${businessEmail}>` : undefined,
+      attachments: [{ filename: `${invoice.invoiceNumber}.pdf`, content: pdf }],
+      customSmtp: user?.settings?.customSmtp,
+    });
 
-  // Mark the invoice as sent if it was a draft and this is the initial invoice
-  // send (not a reminder or receipt). The check is idempotent: re-sending an
-  // already-SENT invoice leaves the status unchanged.
-  if (type === "invoice" && invoice.status === "DRAFT") {
-    invoice.status = "SENT";
+    if (type === "invoice" && invoice.status === "DRAFT") {
+      invoice.status = "SENT";
+    }
+
+    invoice.emailsSent.push({ to, sentAt: new Date(), type });
+    await invoice.save();
+
+    await logActivity({
+      userId,
+      action: "INVOICE_EMAIL_SENT",
+      targetType: "Invoice",
+      targetId: invoiceId,
+      metadata: { type, to, invoiceNumber: invoice.invoiceNumber },
+    });
+
+    logger.info({ jobId: job.id, invoiceId, type, to }, "Email job completed successfully");
+  } catch (error) {
+    logger.error({ jobId: job.id, invoiceId, type, to, err: error }, "Email job processing encountered error");
+    throw error;
   }
-
-  // Append to the delivery log. This is append-only: resends and reminders add
-  // new entries rather than updating an existing one, so the history is visible.
-  invoice.emailsSent.push({ to, sentAt: new Date(), type });
-  await invoice.save();
-
-  // Best-effort activity log. Failures here must not fail the send.
-  await logActivity({
-    userId,
-    action: "INVOICE_EMAIL_SENT",
-    targetType: "Invoice",
-    targetId: invoiceId,
-    metadata: { type, to, invoiceNumber: invoice.invoiceNumber },
-  });
-
-  logger.info({ jobId: job.id, invoiceId, type, to }, "Email sent successfully");
 }

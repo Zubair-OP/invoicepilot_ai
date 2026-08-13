@@ -2,7 +2,9 @@ import { User } from "../../database/models/index.js";
 import { NotFoundError, ValidationError, ServiceUnavailableError } from "../../common/errors/index.js";
 import { createPlanCheckoutSession, createBillingPortalSession, stripe } from "../../integrations/stripe/stripe.js";
 import { getUsageSnapshot } from "./billing.limits.js";
-import { PLANS, getPlanByKey, FREE_PLAN, type PlanDefinition } from "./plans.registry.js";
+import { PLANS, getPlanByKey, getPlanByPriceId, FREE_PLAN, type PlanDefinition } from "./plans.registry.js";
+import { invalidateUsageCaches } from "./billing.limits.js";
+import { logger } from "../../observability/logger.js";
 import type { PlanKey } from "../../common/types/index.js";
 
 function getStripeOrThrow() {
@@ -21,14 +23,107 @@ export function listPlans() {
 }
 
 /**
+ * Synchronizes subscription state with Stripe.
+ * Can be triggered after checkout redirect (with sessionId) or on demand.
+ */
+export async function syncSubscription(userId: string, sessionId?: string) {
+  if (!stripe) return;
+
+  const user = await User.findOne({ _id: userId, deletedAt: { $exists: false } });
+  if (!user) throw new NotFoundError("User");
+
+  let planChanged = false;
+
+  if (sessionId && sessionId !== "{CHECKOUT_SESSION_ID}") {
+    try {
+      const session = await stripe.checkout.sessions.retrieve(sessionId);
+      const isOwner =
+        session.client_reference_id === userId ||
+        session.metadata?.userId === userId ||
+        (session.customer && session.customer === user.subscription?.stripeCustomerId);
+
+      if (isOwner && (session.payment_status === "paid" || session.status === "complete")) {
+        const metadataPlanKey = session.metadata?.planKey as PlanKey | undefined;
+        let planKey: PlanKey = metadataPlanKey && getPlanByKey(metadataPlanKey) ? metadataPlanKey : "free";
+
+        if (planKey === "free" && session.subscription) {
+          const sub = await stripe.subscriptions.retrieve(session.subscription as string);
+          const priceId = sub.items?.data?.[0]?.price?.id;
+          const matchedPlan = getPlanByPriceId(priceId);
+          if (matchedPlan) planKey = matchedPlan.key;
+        }
+
+        if (planKey !== "free") {
+          user.subscription.planKey = planKey;
+          user.subscription.status = "active";
+          if (session.customer) user.subscription.stripeCustomerId = session.customer as string;
+          if (session.subscription) user.subscription.stripeSubscriptionId = session.subscription as string;
+          planChanged = true;
+        }
+      }
+    } catch (err) {
+      logger.warn({ err, userId, sessionId }, "Failed to verify Stripe checkout session during sync");
+    }
+  }
+
+  // Fallback: If still on free or no sessionId, check Stripe customer's active subscriptions directly
+  if (user.subscription?.stripeCustomerId && user.subscription.planKey === "free") {
+    try {
+      const subscriptions = await stripe.subscriptions.list({
+        customer: user.subscription.stripeCustomerId,
+        status: "active",
+        limit: 1,
+      });
+
+      if (subscriptions.data.length > 0) {
+        const sub = subscriptions.data[0];
+        const priceId = sub.items?.data?.[0]?.price?.id;
+        const matchedPlan = getPlanByPriceId(priceId);
+        if (matchedPlan) {
+          user.subscription.planKey = matchedPlan.key;
+          user.subscription.status = "active";
+          user.subscription.stripeSubscriptionId = sub.id;
+          if (sub.current_period_start) user.subscription.currentPeriodStart = new Date(sub.current_period_start * 1000);
+          if (sub.current_period_end) user.subscription.currentPeriodEnd = new Date(sub.current_period_end * 1000);
+          planChanged = true;
+        }
+      }
+    } catch (err) {
+      logger.warn({ err, userId }, "Failed to query Stripe customer subscriptions during sync");
+    }
+  }
+
+  if (planChanged) {
+    await user.save();
+    await invalidateUsageCaches(userId);
+    logger.info({ userId, planKey: user.subscription.planKey }, "User subscription synced successfully from Stripe");
+  }
+
+  return user.subscription;
+}
+
+/**
  * Current subscription + usage for the tenant across all tracked resources.
  * Usage is scoped to the current billing period (see billing.limits).
  */
-export async function getSubscription(userId: string) {
+export async function getSubscription(userId: string, sessionId?: string) {
+  if (sessionId) {
+    await syncSubscription(userId, sessionId);
+  }
+
   const user = await User.findOne({ _id: userId, deletedAt: { $exists: false } })
     .select("subscription")
     .lean();
   if (!user) throw new NotFoundError("User");
+
+  // If user has a stripeCustomerId and is on free, do an auto-sync check
+  if (stripe && user.subscription?.stripeCustomerId && user.subscription.planKey === "free") {
+    await syncSubscription(userId);
+    const refreshed = await User.findOne({ _id: userId, deletedAt: { $exists: false } })
+      .select("subscription")
+      .lean();
+    if (refreshed) user.subscription = refreshed.subscription;
+  }
 
   const planKey: PlanKey = user.subscription?.planKey ?? "free";
   const plan = getPlanByKey(planKey) ?? FREE_PLAN;

@@ -34,8 +34,8 @@ export async function createCheckoutSession(params: {
     metadata: { invoiceId: params.invoiceId, customerId: params.customerId },
     // Success/cancel redirect back to the frontend, resolved from the validated
     // env object (never process.env — env.ts fails fast on bad config).
-    success_url: `${env.CORS_ORIGIN}/invoices/${params.invoiceId}?payment=success`,
-    cancel_url: `${env.CORS_ORIGIN}/invoices/${params.invoiceId}?payment=cancelled`,
+    success_url: `${env.CORS_ORIGIN}/dashboard/invoices/${params.invoiceId}?payment=success`,
+    cancel_url: `${env.CORS_ORIGIN}/dashboard/invoices/${params.invoiceId}?payment=cancelled`,
   });
 }
 
@@ -55,8 +55,8 @@ export async function createPlanCheckoutSession(params: {
     metadata: { userId: params.userId, planKey: params.planKey },
     client_reference_id: params.userId,
     allow_promotion_codes: true,
-    success_url: `${env.CORS_ORIGIN}/billing?checkout=success`,
-    cancel_url: `${env.CORS_ORIGIN}/billing?checkout=cancelled`,
+    success_url: `${env.CORS_ORIGIN}/dashboard/billing?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${env.CORS_ORIGIN}/dashboard/billing?checkout=cancelled`,
   });
 }
 
@@ -66,7 +66,7 @@ export async function createBillingPortalSession(params: { customerId: string })
 
   return stripe.billingPortal.sessions.create({
     customer: params.customerId,
-    return_url: `${env.CORS_ORIGIN}/billing`,
+    return_url: `${env.CORS_ORIGIN}/dashboard/billing`,
   });
 }
 

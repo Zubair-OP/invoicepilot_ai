@@ -13,6 +13,7 @@ router.get("/plans", generousLimiter, billingController.listPlans);
 // Everything else needs a session to know whose subscription/usage to act on.
 // Checkout/portal talk to Stripe → strict tier; subscription reads are cheap.
 router.get("/subscription", authenticate, generousLimiter, billingController.getSubscription);
+router.post("/sync", authenticate, generousLimiter, billingController.syncSubscription);
 router.post("/checkout", authenticate, strictLimiter, validate(checkoutSchema), billingController.checkout);
 router.post("/portal", authenticate, strictLimiter, billingController.portal);
 

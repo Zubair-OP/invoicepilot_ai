@@ -12,6 +12,45 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  async redirects() {
+    return [
+      {
+        source: "/billing",
+        destination: "/dashboard/billing",
+        permanent: false,
+      },
+      {
+        source: "/templates",
+        destination: "/dashboard/templates",
+        permanent: false,
+      },
+      {
+        source: "/settings",
+        destination: "/dashboard/settings",
+        permanent: false,
+      },
+      {
+        source: "/invoices",
+        destination: "/dashboard/invoices",
+        permanent: false,
+      },
+      {
+        source: "/invoices/:path*",
+        destination: "/dashboard/invoices/:path*",
+        permanent: false,
+      },
+      {
+        source: "/customers",
+        destination: "/dashboard/customers",
+        permanent: false,
+      },
+      {
+        source: "/customers/:path*",
+        destination: "/dashboard/customers/:path*",
+        permanent: false,
+      },
+    ];
+  },
 };
 
 export default nextConfig;

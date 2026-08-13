@@ -12,8 +12,19 @@ export function listPlans(_req: Request, res: Response, next: NextFunction) {
 
 export async function getSubscription(req: Request, res: Response, next: NextFunction) {
   try {
-    const result = await billingService.getSubscription(req.user!.userId);
+    const sessionId = (req.query.session_id as string) || (req.query.sessionId as string);
+    const result = await billingService.getSubscription(req.user!.userId, sessionId);
     res.json(successResponse(result));
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function syncSubscription(req: Request, res: Response, next: NextFunction) {
+  try {
+    const sessionId = req.body?.sessionId || (req.query.session_id as string);
+    const result = await billingService.syncSubscription(req.user!.userId, sessionId);
+    res.json(successResponse(result, "Subscription synced with Stripe"));
   } catch (error) {
     next(error);
   }

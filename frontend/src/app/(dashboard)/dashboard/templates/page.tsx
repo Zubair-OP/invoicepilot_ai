@@ -56,6 +56,7 @@ export default function TemplatesPage() {
   const [loading, setLoading] = useState(true);
   const [currentTemplate, setCurrentTemplate] = useState("classic");
   const [userPlanKey, setUserPlanKey] = useState<string>("free");
+  const [allowedTemplates, setAllowedTemplates] = useState<string[]>(["classic"]);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -69,10 +70,18 @@ export default function TemplatesPage() {
         if (settingsRes.success) {
           setCurrentTemplate(settingsRes.data.templateId || "classic");
         }
-        if (subRes.success && subRes.data?.subscription?.planKey) {
-          setUserPlanKey(subRes.data.subscription.planKey);
-        } else {
-          setUserPlanKey("free");
+        if (subRes.success && subRes.data) {
+          const planKey = subRes.data.subscription?.planKey || subRes.data.plan?.key || "free";
+          setUserPlanKey(planKey);
+          if (subRes.data.plan?.limits?.templatesAllowed) {
+            setAllowedTemplates(subRes.data.plan.limits.templatesAllowed);
+          } else if (planKey === "premium") {
+            setAllowedTemplates(["classic", "modern", "minimal"]);
+          } else if (planKey === "pro") {
+            setAllowedTemplates(["classic", "modern"]);
+          } else {
+            setAllowedTemplates(["classic"]);
+          }
         }
       } catch {} finally {
         setLoading(false);
@@ -81,15 +90,16 @@ export default function TemplatesPage() {
     load();
   }, []);
 
-  const isTemplateUnlocked = (templateKey: "free" | "pro" | "premium") => {
-    if (templateKey === "free") return true;
-    if (templateKey === "pro") return userPlanKey === "pro" || userPlanKey === "premium";
-    if (templateKey === "premium") return userPlanKey === "premium";
+  const isTemplateUnlocked = (tpl: TemplateVisual) => {
+    if (allowedTemplates.includes(tpl.id)) return true;
+    if (tpl.tierKey === "free") return true;
+    if (tpl.tierKey === "pro") return userPlanKey === "pro" || userPlanKey === "premium";
+    if (tpl.tierKey === "premium") return userPlanKey === "premium";
     return false;
   };
 
   const handleSelect = async (tpl: TemplateVisual) => {
-    const unlocked = isTemplateUnlocked(tpl.tierKey);
+    const unlocked = isTemplateUnlocked(tpl);
 
     if (!unlocked) {
       const ok = await confirmModal({
@@ -154,7 +164,7 @@ export default function TemplatesPage() {
       <div className="grid md:grid-cols-3 gap-6">
         {TEMPLATE_META.map((tpl) => {
           const isSelected = currentTemplate === tpl.id;
-          const unlocked = isTemplateUnlocked(tpl.tierKey);
+          const unlocked = isTemplateUnlocked(tpl);
 
           return (
             <div

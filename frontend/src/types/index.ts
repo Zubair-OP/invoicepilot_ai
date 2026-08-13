@@ -67,8 +67,17 @@ export interface InvoiceTemplate {
   previewUrl?: string;
 }
 
+export interface CustomSmtpSettings {
+  host?: string;
+  port?: number;
+  user?: string;
+  pass?: string;
+}
+
 export interface UserSettings {
   businessName?: string;
+  businessEmail?: string;
+  businessPhone?: string;
   businessAddress?: string;
   taxId?: string;
   logoUrl?: string;
@@ -77,6 +86,7 @@ export interface UserSettings {
   defaultTaxComponents: { name: string; rate: number; amount: number }[];
   invoicePrefix: string;
   templateId: string;
+  customSmtp?: CustomSmtpSettings;
   reminders: {
     enabled: boolean;
     offsets: number[];

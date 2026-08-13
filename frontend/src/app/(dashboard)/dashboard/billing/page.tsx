@@ -1,35 +1,98 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Check, CreditCard, ExternalLink } from "lucide-react";
+import { useEffect, useState, Suspense } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
+import Link from "next/link";
+import { Check, CreditCard, ExternalLink, RefreshCw, Sparkles, LayoutTemplate, ShieldCheck } from "lucide-react";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Loading from "@/components/ui/Loading";
 import Badge from "@/components/ui/Badge";
 import type { BillingInfo, Plan } from "@/types";
-
 import { useToast } from "@/context/ToastContext";
 
-export default function BillingPage() {
+function BillingContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const { toast } = useToast();
+
   const [billing, setBilling] = useState<BillingInfo | null>(null);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState("");
+  const [showSuccessBanner, setShowSuccessBanner] = useState(false);
+
+  const loadBillingData = async (sessionId?: string) => {
+    try {
+      const { api } = await import("@/lib/api");
+      const [subRes, plansRes] = await Promise.all([
+        api.getSubscription(sessionId ? { session_id: sessionId } : undefined),
+        api.getPlans(),
+      ]);
+      if (subRes.success) {
+        setBilling(subRes.data);
+      }
+      if (plansRes.success) {
+        setPlans(plansRes.data);
+      }
+      return subRes.data;
+    } catch (err: any) {
+      toast.error(err.message || "Failed to load billing information");
+      return null;
+    }
+  };
 
   useEffect(() => {
-    async function load() {
-      try {
-        const { api } = await import("@/lib/api");
-        const [subRes, plansRes] = await Promise.all([api.getSubscription(), api.getPlans()]);
-        if (subRes.success) setBilling(subRes.data);
-        if (plansRes.success) setPlans(plansRes.data);
-      } catch {} finally {
+    async function init() {
+      const checkoutStatus = searchParams?.get("checkout");
+      const sessionId = searchParams?.get("session_id") || undefined;
+
+      if (checkoutStatus === "success") {
+        setSyncing(true);
+        try {
+          const { api } = await import("@/lib/api");
+          // Sync directly with Stripe API
+          await api.syncSubscription(sessionId);
+          const data = await loadBillingData(sessionId);
+          setShowSuccessBanner(true);
+          toast.success(
+            `🎉 Payment successful! You are now subscribed to the ${data?.plan?.name || "Premium"} plan.`
+          );
+        } catch {
+          await loadBillingData();
+        } finally {
+          setSyncing(false);
+          setLoading(false);
+        }
+      } else if (checkoutStatus === "cancelled") {
+        toast.info("Checkout process was cancelled.");
+        await loadBillingData();
+        setLoading(false);
+      } else {
+        await loadBillingData();
         setLoading(false);
       }
     }
-    load();
-  }, []);
+
+    init();
+  }, [searchParams]);
+
+  const handleManualSync = async () => {
+    setSyncing(true);
+    try {
+      const { api } = await import("@/lib/api");
+      await api.syncSubscription();
+      const data = await loadBillingData();
+      toast.success(
+        `Subscription synced! Active plan: ${data?.plan?.name || "Free"}`
+      );
+    } catch (err: any) {
+      toast.error(err.message || "Failed to sync subscription");
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const handleCheckout = async (planKey: string) => {
     setCheckoutLoading(planKey);
@@ -62,34 +125,102 @@ export default function BillingPage() {
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold text-gray-900">Billing & Subscription</h2>
-        <p className="text-sm text-gray-500 mt-1">Manage your subscription and billing</p>
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900">Billing & Subscription</h2>
+          <p className="text-sm text-gray-500 mt-1">Manage your plan, limits, and billing details</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleManualSync}
+            disabled={syncing}
+            className="flex items-center gap-1.5 text-xs text-gray-700 hover:text-gray-900"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${syncing ? "animate-spin" : ""}`} />
+            {syncing ? "Syncing..." : "Sync with Stripe"}
+          </Button>
+        </div>
       </div>
+
+      {/* Celebration Banner after successful checkout */}
+      {showSuccessBanner && billing && (
+        <div className="bg-gradient-to-r from-emerald-600 via-green-600 to-teal-700 text-white p-6 rounded-2xl shadow-lg relative overflow-hidden">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
+            <div className="space-y-1">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/20 text-xs font-bold text-white mb-1">
+                <ShieldCheck className="w-4 h-4" /> Subscription Active
+              </div>
+              <h3 className="text-xl sm:text-2xl font-extrabold">
+                🎉 Welcome to the {billing.plan.name} Plan!
+              </h3>
+              <p className="text-sm text-green-100 max-w-xl">
+                Your payment was verified. All {billing.plan.limits.templatesAllowed.length} design templates, higher AI limits, and invoicing capabilities are now unlocked and ready to use.
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              <Link href="/dashboard/templates">
+                <Button className="bg-white text-emerald-800 hover:bg-emerald-50 font-bold border-0 shadow-md">
+                  <LayoutTemplate className="w-4 h-4 mr-1.5" />
+                  Choose Template
+                </Button>
+              </Link>
+              <Link href="/dashboard/invoices/new">
+                <Button variant="outline" className="bg-white/10 text-white border-white/30 hover:bg-white/20">
+                  Create Invoice
+                </Button>
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Current Plan */}
       {billing && (
         <Card>
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold text-gray-900">Current Plan</h3>
-            {billing.subscription && (
-              <Button variant="outline" size="sm" onClick={handlePortal}>
-                <ExternalLink className="w-4 h-4 mr-2" />
-                Manage Subscription
-              </Button>
-            )}
+            <div className="flex items-center gap-2">
+              {billing.subscription && (
+                <Button variant="outline" size="sm" onClick={handlePortal}>
+                  <ExternalLink className="w-4 h-4 mr-2" />
+                  Manage in Stripe
+                </Button>
+              )}
+            </div>
           </div>
-          <div className="grid sm:grid-cols-2 gap-6">
+          <div className="grid sm:grid-cols-3 gap-6">
             <div>
               <p className="text-sm text-gray-500">Plan</p>
-              <p className="text-lg font-bold text-gray-900">{billing.plan.name}</p>
+              <p className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                {billing.plan.name}
+                {billing.plan.key !== "free" && (
+                  <Sparkles className="w-4 h-4 text-amber-500 fill-amber-500" />
+                )}
+              </p>
               <p className="text-sm text-gray-500 mt-1">{billing.plan.description}</p>
             </div>
             <div>
               <p className="text-sm text-gray-500">Status</p>
-              <Badge variant={billing.subscription?.status === "active" ? "success" : "warning"}>
-                {billing.subscription?.status || "No subscription"}
-              </Badge>
+              <div className="mt-1">
+                <Badge variant={billing.subscription?.status === "active" ? "success" : "warning"}>
+                  {billing.subscription?.status ? billing.subscription.status.toUpperCase() : "ACTIVE (FREE)"}
+                </Badge>
+              </div>
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">Invoice Templates</p>
+              <p className="text-base font-bold text-gray-900 mt-1">
+                {billing.plan.limits.templatesAllowed.length} Unlocked
+              </p>
+              <Link
+                href="/dashboard/templates"
+                className="text-xs text-green-600 hover:text-green-700 font-medium inline-flex items-center gap-1 mt-1"
+              >
+                Configure Templates &rarr;
+              </Link>
             </div>
           </div>
         </Card>
@@ -120,9 +251,11 @@ export default function BillingPage() {
                   <div className="flex items-center justify-between">
                     <p className="text-xs font-semibold text-gray-500">{label}</p>
                     {!usage.unlimited && (
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                        percent >= 100 ? "bg-rose-100 text-rose-700" : "bg-gray-100 text-gray-700"
-                      }`}>
+                      <span
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                          percent >= 100 ? "bg-rose-100 text-rose-700" : "bg-gray-100 text-gray-700"
+                        }`}
+                      >
                         {Math.round(percent)}%
                       </span>
                     )}
@@ -156,53 +289,73 @@ export default function BillingPage() {
             return (
               <Card
                 key={plan.key}
-                className={`relative ${isCurrent ? "ring-2 ring-green-500" : ""}`}
+                className={`relative flex flex-col justify-between ${
+                  isCurrent ? "ring-2 ring-green-500 shadow-md" : ""
+                }`}
               >
                 {isCurrent && (
-                  <Badge variant="success" className="absolute -top-3 left-1/2 -translate-x-1/2">
+                  <Badge variant="success" className="absolute -top-3 left-1/2 -translate-x-1/2 shadow-sm">
                     Current Plan
                   </Badge>
                 )}
-                <h4 className="text-xl font-bold text-gray-900">{plan.name}</h4>
-                <p className="text-3xl font-bold text-gray-900 mt-2">
-                  ${plan.priceMonthly}
-                  <span className="text-sm font-normal text-gray-500">/mo</span>
-                </p>
-                <p className="text-sm text-gray-500 mt-2 mb-4">{plan.description}</p>
-                <ul className="space-y-2 mb-6">
-                  <li className="flex items-center gap-2 text-sm text-gray-700">
-                    <Check className="w-4 h-4 text-green-600" />
-                    {plan.limits.invoicesPerMonth.unlimited ? "Unlimited" : plan.limits.invoicesPerMonth.limit} invoices/month
-                  </li>
-                  <li className="flex items-center gap-2 text-sm text-gray-700">
-                    <Check className="w-4 h-4 text-green-600" />
-                    {plan.limits.customers.unlimited ? "Unlimited" : plan.limits.customers.limit} customers
-                  </li>
-                  <li className="flex items-center gap-2 text-sm text-gray-700">
-                    <Check className="w-4 h-4 text-green-600" />
-                    {plan.limits.aiGenerationsPerMonth.unlimited ? "Unlimited" : plan.limits.aiGenerationsPerMonth.limit} AI generations
-                  </li>
-                  <li className="flex items-center gap-2 text-sm text-gray-700">
-                    <Check className="w-4 h-4 text-green-600" />
-                    {plan.limits.templatesAllowed.length} templates
-                  </li>
-                </ul>
-                {!isCurrent && plan.checkoutEnabled && (
-                  <Button
-                    className="w-full"
-                    variant={plan.key === "pro" ? "primary" : "outline"}
-                    onClick={() => handleCheckout(plan.key)}
-                    disabled={checkoutLoading === plan.key}
-                  >
-                    <CreditCard className="w-4 h-4 mr-2" />
-                    {checkoutLoading === plan.key ? "Loading..." : `Upgrade to ${plan.name}`}
-                  </Button>
-                )}
+                <div>
+                  <h4 className="text-xl font-bold text-gray-900">{plan.name}</h4>
+                  <p className="text-3xl font-bold text-gray-900 mt-2">
+                    ${plan.priceMonthly}
+                    <span className="text-sm font-normal text-gray-500">/mo</span>
+                  </p>
+                  <p className="text-sm text-gray-500 mt-2 mb-4">{plan.description}</p>
+                  <ul className="space-y-2 mb-6">
+                    <li className="flex items-center gap-2 text-sm text-gray-700">
+                      <Check className="w-4 h-4 text-green-600 shrink-0" />
+                      {plan.limits.invoicesPerMonth.unlimited ? "Unlimited" : plan.limits.invoicesPerMonth.limit} invoices/month
+                    </li>
+                    <li className="flex items-center gap-2 text-sm text-gray-700">
+                      <Check className="w-4 h-4 text-green-600 shrink-0" />
+                      {plan.limits.customers.unlimited ? "Unlimited" : plan.limits.customers.limit} customers
+                    </li>
+                    <li className="flex items-center gap-2 text-sm text-gray-700">
+                      <Check className="w-4 h-4 text-green-600 shrink-0" />
+                      {plan.limits.aiGenerationsPerMonth.unlimited ? "Unlimited" : plan.limits.aiGenerationsPerMonth.limit} AI generations
+                    </li>
+                    <li className="flex items-center gap-2 text-sm text-gray-700">
+                      <Check className="w-4 h-4 text-green-600 shrink-0" />
+                      <span className="font-semibold text-gray-900">{plan.limits.templatesAllowed.length} Templates</span> ({plan.limits.templatesAllowed.join(", ")})
+                    </li>
+                  </ul>
+                </div>
+
+                <div>
+                  {!isCurrent && plan.checkoutEnabled && (
+                    <Button
+                      className="w-full"
+                      variant={plan.key === "pro" ? "primary" : "outline"}
+                      onClick={() => handleCheckout(plan.key)}
+                      disabled={checkoutLoading === plan.key}
+                    >
+                      <CreditCard className="w-4 h-4 mr-2" />
+                      {checkoutLoading === plan.key ? "Redirecting..." : `Upgrade to ${plan.name}`}
+                    </Button>
+                  )}
+                  {isCurrent && (
+                    <div className="w-full py-2 text-center text-xs font-bold text-green-700 bg-green-50 rounded-lg border border-green-200">
+                      Active Plan
+                    </div>
+                  )}
+                </div>
               </Card>
             );
           })}
         </div>
       </div>
     </div>
+  );
+}
+
+export default function BillingPage() {
+  return (
+    <Suspense fallback={<Loading size="lg" text="Loading billing..." />}>
+      <BillingContent />
+    </Suspense>
   );
 }

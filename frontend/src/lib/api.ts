@@ -146,7 +146,12 @@ export const api = {
 
   // Billing
   getPlans: () => fetchApi<any>("/billing/plans"),
-  getSubscription: () => fetchApi<any>("/billing/subscription"),
+  getSubscription: (params?: { session_id?: string }) => {
+    const query = params?.session_id ? `?session_id=${encodeURIComponent(params.session_id)}` : "";
+    return fetchApi<any>(`/billing/subscription${query}`);
+  },
+  syncSubscription: (sessionId?: string) =>
+    fetchApi<any>("/billing/sync", { method: "POST", body: JSON.stringify({ sessionId }) }),
   createCheckout: (planKey: string) => fetchApi<any>("/billing/checkout", { method: "POST", body: JSON.stringify({ planKey }) }),
   openPortal: () => fetchApi<any>("/billing/portal", { method: "POST" }),
 

@@ -63,12 +63,10 @@ export async function queueInvoiceEmail(
     message: input.message,
   };
 
-  const jobId = buildEmailJobId(invoiceId, type, to);
+  const jobId = `${buildEmailJobId(invoiceId, type, to)}_${Date.now()}`;
   const job = await emailQueue.add(EMAIL_QUEUE_JOB_NAME, jobData, { ...EMAIL_JOB_OPTS, jobId });
 
-  // BullMQ returns the existing job (same id) instead of adding a duplicate when
-  // one is already queued/active — treat that as "already queued", not an error.
-  const queued = job.id === jobId;
+  const queued = true;
   logger.info({ invoiceId, type, to, jobId, queued }, "Invoice email enqueued");
 
   return { invoiceId, invoiceNumber: invoice.invoiceNumber, to, type, queued };

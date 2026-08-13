@@ -38,10 +38,19 @@ export type UserRole = "USER" | "ADMIN";
 
 export type InvoiceStatus = "DRAFT" | "SENT" | "PAID" | "OVERDUE" | "CANCELLED";
 
+export interface ICustomSmtpSettings {
+  host?: string;
+  port?: number;
+  user?: string;
+  pass?: string;
+}
+
 // Per-tenant business defaults and invoice appearance. Pure data in Phase 3 —
 // rendering uses `templateId` in Phase 5; the defaults pre-fill new invoices.
 export interface IUserSettings {
   businessName?: string;
+  businessEmail?: string;
+  businessPhone?: string;
   businessAddress?: string;
   taxId?: string;                        // GSTIN / VAT number
   logoUrl?: string;
@@ -50,6 +59,7 @@ export interface IUserSettings {
   defaultTaxComponents: ITaxComponent[]; // pre-fill new invoices
   invoicePrefix: string;                 // default "INV"
   templateId: string;                    // default "classic"
+  customSmtp?: ICustomSmtpSettings;
   reminders?: IReminderSettings;         // dunning schedule (Phase 7) — schema-defaulted
 }
 

@@ -32,6 +32,8 @@ const reminderSettingsSchema = new Schema<IReminderSettings>(
 const settingsSchema = new Schema<IUserSettings>(
   {
     businessName: { type: String, trim: true },
+    businessEmail: { type: String, trim: true, lowercase: true },
+    businessPhone: { type: String, trim: true },
     businessAddress: { type: String, trim: true },
     taxId: { type: String, trim: true },
     logoUrl: { type: String, trim: true },
@@ -40,6 +42,12 @@ const settingsSchema = new Schema<IUserSettings>(
     defaultTaxComponents: { type: [settingsTaxComponentSchema], default: [] },
     invoicePrefix: { type: String, default: "INV", uppercase: true, trim: true },
     templateId: { type: String, default: "classic", trim: true },
+    customSmtp: {
+      host: { type: String, trim: true },
+      port: { type: Number },
+      user: { type: String, trim: true },
+      pass: { type: String, trim: true },
+    },
     reminders: { type: reminderSettingsSchema, default: () => ({}) },
   },
   { _id: false }
