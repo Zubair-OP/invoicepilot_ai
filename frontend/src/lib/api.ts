@@ -70,6 +70,32 @@ export const api = {
   unvoidInvoice: (id: string) => fetchApi<any>(`/invoices/${id}/unvoid`, { method: "PATCH" }),
   getInvoicePdf: (id: string) => `${API_BASE}/invoices/${id}/pdf`,
   getInvoicePreview: (id: string) => `${API_BASE}/invoices/${id}/preview`,
+  downloadInvoicePdf: async (id: string, invoiceNumber?: string): Promise<void> => {
+    const token = await getToken();
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+
+    const response = await fetch(`${API_BASE}/invoices/${id}/pdf`, {
+      headers,
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({ message: "Failed to download PDF" }));
+      throw new Error(err.message || `HTTP ${response.status}`);
+    }
+
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `Invoice-${invoiceNumber || id}.pdf`;
+    document.body.appendChild(link);
+    link.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(link);
+  },
   sendInvoiceEmail: (id: string, data?: any) => fetchApi<any>(`/invoices/${id}/send-email`, { method: "POST", body: JSON.stringify(data || {}) }),
   remindInvoice: (id: string) => fetchApi<any>(`/invoices/${id}/remind`, { method: "POST" }),
 

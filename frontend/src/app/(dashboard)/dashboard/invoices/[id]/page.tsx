@@ -98,6 +98,21 @@ export default function InvoiceDetailPage() {
     }
   };
 
+  const handleDownloadPdf = async () => {
+    if (!invoice) return;
+    setActionLoading(true);
+    try {
+      const { api } = await import("@/lib/api");
+      toast.info("Generating PDF, please wait...", "Downloading");
+      await api.downloadInvoicePdf(invoice._id, invoice.invoiceNumber);
+      toast.success("PDF downloaded successfully!");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to generate PDF");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   if (loading) return <Loading size="lg" text="Loading invoice..." />;
   if (!invoice) return <div className="text-center py-12 text-gray-500">Invoice not found</div>;
 
@@ -130,9 +145,10 @@ export default function InvoiceDetailPage() {
               <Mail className="w-4 h-4 mr-2" />
               Send via Email
             </Button>
-            <a href={`${process.env.NEXT_PUBLIC_API_URL}/invoices/${invoice._id}/pdf`} target="_blank" rel="noopener noreferrer">
-              <Button variant="outline"><Download className="w-4 h-4 mr-2" />Download PDF</Button>
-            </a>
+            <Button variant="outline" onClick={handleDownloadPdf} disabled={actionLoading}>
+              <Download className="w-4 h-4 mr-2" />
+              Download PDF
+            </Button>
             <Button variant="outline" onClick={() => window.print()}>
               <Printer className="w-4 h-4 mr-2" />Print
             </Button>
@@ -150,9 +166,10 @@ export default function InvoiceDetailPage() {
               <Mail className="w-4 h-4 mr-2" />
               {invoice.status === "OVERDUE" ? "Send Reminder" : "Resend Email"}
             </Button>
-            <a href={`${process.env.NEXT_PUBLIC_API_URL}/invoices/${invoice._id}/pdf`} target="_blank" rel="noopener noreferrer">
-              <Button variant="outline"><Download className="w-4 h-4 mr-2" />Download PDF</Button>
-            </a>
+            <Button variant="outline" onClick={handleDownloadPdf} disabled={actionLoading}>
+              <Download className="w-4 h-4 mr-2" />
+              Download PDF
+            </Button>
             <Button variant="outline" onClick={() => window.print()}>
               <Printer className="w-4 h-4 mr-2" />Print
             </Button>
@@ -163,9 +180,10 @@ export default function InvoiceDetailPage() {
 
           {/* ── PAID: download & void only — no email, no re-pay ── */}
           {invoice.status === "PAID" && (<>
-            <a href={`${process.env.NEXT_PUBLIC_API_URL}/invoices/${invoice._id}/pdf`} target="_blank" rel="noopener noreferrer">
-              <Button variant="outline"><Download className="w-4 h-4 mr-2" />Download PDF</Button>
-            </a>
+            <Button variant="outline" onClick={handleDownloadPdf} disabled={actionLoading}>
+              <Download className="w-4 h-4 mr-2" />
+              Download PDF
+            </Button>
             <Button variant="outline" onClick={() => window.print()}>
               <Printer className="w-4 h-4 mr-2" />Print
             </Button>
@@ -184,9 +202,10 @@ export default function InvoiceDetailPage() {
             >
               ↩ Restore Invoice
             </Button>
-            <a href={`${process.env.NEXT_PUBLIC_API_URL}/invoices/${invoice._id}/pdf`} target="_blank" rel="noopener noreferrer">
-              <Button variant="outline"><Download className="w-4 h-4 mr-2" />Download PDF</Button>
-            </a>
+            <Button variant="outline" onClick={handleDownloadPdf} disabled={actionLoading}>
+              <Download className="w-4 h-4 mr-2" />
+              Download PDF
+            </Button>
             <Button variant="outline" onClick={() => window.print()}>
               <Printer className="w-4 h-4 mr-2" />Print
             </Button>

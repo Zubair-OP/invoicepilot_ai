@@ -69,6 +69,17 @@ export default function InvoicesPage() {
     }
   };
 
+  const handleDownloadPdf = async (id: string, invoiceNumber?: string) => {
+    try {
+      const { api } = await import("@/lib/api");
+      toast.info("Generating PDF, please wait...", "Downloading");
+      await api.downloadInvoicePdf(id, invoiceNumber);
+      toast.success("PDF downloaded successfully!");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to download PDF");
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -171,11 +182,15 @@ export default function InvoicesPage() {
                         <Link href={`/dashboard/invoices/${inv._id}`} className="p-1.5 rounded hover:bg-gray-100" title="View">
                           <Eye className="w-4 h-4 text-gray-500" />
                         </Link>
-                        <a href={`${process.env.NEXT_PUBLIC_API_URL}/invoices/${inv._id}/pdf`} className="p-1.5 rounded hover:bg-gray-100" title="Download PDF" target="_blank">
+                        <button
+                          onClick={() => handleDownloadPdf(inv._id, inv.invoiceNumber)}
+                          className="p-1.5 rounded hover:bg-gray-100 transition-colors"
+                          title="Download PDF"
+                        >
                           <Download className="w-4 h-4 text-gray-500" />
-                        </a>
+                        </button>
                         {inv.status === "DRAFT" && (
-                          <button onClick={() => handleDelete(inv._id)} className="p-1.5 rounded hover:bg-red-50" title="Delete">
+                          <button onClick={() => handleDelete(inv._id, inv.invoiceNumber)} className="p-1.5 rounded hover:bg-red-50" title="Delete">
                             <Trash2 className="w-4 h-4 text-red-500" />
                           </button>
                         )}

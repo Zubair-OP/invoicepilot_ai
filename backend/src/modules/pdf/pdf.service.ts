@@ -21,7 +21,18 @@ const MAX_CONCURRENT_RENDERS = 3;
 
 async function getBrowser(): Promise<Browser> {
   if (!browser) {
-    browser = await chromium.launch({ headless: true });
+    browser = await chromium.launch({
+      headless: true,
+      args: [
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+        "--disable-dev-shm-usage",
+        "--disable-gpu",
+        "--no-first-run",
+        "--no-zygote",
+        "--single-process",
+      ],
+    });
     logger.info("Playwright browser launched");
   }
   return browser;
