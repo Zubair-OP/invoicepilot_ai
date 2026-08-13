@@ -8,7 +8,10 @@ import Loading from "@/components/ui/Loading";
 import Badge from "@/components/ui/Badge";
 import type { BillingInfo, Plan } from "@/types";
 
+import { useToast } from "@/context/ToastContext";
+
 export default function BillingPage() {
+  const { toast } = useToast();
   const [billing, setBilling] = useState<BillingInfo | null>(null);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [loading, setLoading] = useState(true);
@@ -37,7 +40,7 @@ export default function BillingPage() {
         window.location.href = res.data.url;
       }
     } catch (err: any) {
-      alert(err.message || "Checkout failed");
+      toast.error(err.message || "Checkout session failed");
     } finally {
       setCheckoutLoading("");
     }
@@ -51,7 +54,7 @@ export default function BillingPage() {
         window.location.href = res.data.url;
       }
     } catch (err: any) {
-      alert(err.message || "Failed to open portal");
+      toast.error(err.message || "Failed to open customer billing portal");
     }
   };
 

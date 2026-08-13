@@ -86,10 +86,16 @@ async function main() {
   const { startEmailWorker } = await import("./jobs/workers/email.worker.js");
   const { startReminderWorker } = await import("./jobs/workers/reminder.worker.js");
   const { scheduleReminderSweep } = await import("./jobs/scheduler.js");
+  const { processReminderSweep } = await import("./modules/reminders/index.js");
   startEmailWorker();
   startReminderWorker();
   await scheduleReminderSweep();
-  logger.info("Workers started (email + reminder)");
+  logger.info("Workers started (email + reminder: scheduled every 5 minutes)");
+
+  // Run an immediate check on startup in development
+  if (env.NODE_ENV === "development") {
+    processReminderSweep().catch((err) => logger.warn({ err }, "Initial dev reminder sweep failed"));
+  }
 
   app.listen(env.PORT, () => {
     logger.info(`Server running on port ${env.PORT} in ${env.NODE_ENV} mode`);

@@ -11,9 +11,12 @@ import Textarea from "@/components/ui/Textarea";
 import Loading from "@/components/ui/Loading";
 import type { Customer } from "@/types";
 
+import { useToast } from "@/context/ToastContext";
+
 export default function CustomerDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const { toast, confirmModal } = useToast();
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -50,26 +53,37 @@ export default function CustomerDetailPage() {
   }, [params.id]);
 
   const handleSave = async () => {
+    if (!form.name.trim()) {
+      toast.error("Customer name cannot be empty.", "Validation Error");
+      return;
+    }
     setSaving(true);
     try {
       const { api } = await import("@/lib/api");
       await api.updateCustomer(params.id as string, form);
-      alert("Customer updated!");
+      toast.success("Customer profile updated successfully!");
     } catch (err: any) {
-      alert(err.message || "Failed to update");
+      toast.error(err.message || "Failed to update customer");
     } finally {
       setSaving(false);
     }
   };
 
   const handleDelete = async () => {
-    if (!confirm("Delete this customer?")) return;
+    const ok = await confirmModal({
+      title: "Delete Customer",
+      message: `Are you sure you want to delete customer "${customer?.name}"?`,
+      confirmText: "Delete",
+      variant: "danger",
+    });
+    if (!ok) return;
     try {
       const { api } = await import("@/lib/api");
       await api.deleteCustomer(params.id as string);
+      toast.info("Customer deleted.");
       router.push("/dashboard/customers");
     } catch (err: any) {
-      alert(err.message || "Failed to delete");
+      toast.error(err.message || "Failed to delete customer");
     }
   };
 

@@ -6,8 +6,10 @@ import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Loading from "@/components/ui/Loading";
 import type { InvoiceTemplate } from "@/types";
+import { useToast } from "@/context/ToastContext";
 
 export default function TemplatesPage() {
+  const { toast } = useToast();
   const [templates, setTemplates] = useState<InvoiceTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentTemplate, setCurrentTemplate] = useState("classic");
@@ -33,8 +35,9 @@ export default function TemplatesPage() {
       const { api } = await import("@/lib/api");
       await api.updateSettings({ templateId });
       setCurrentTemplate(templateId);
+      toast.success(`Template changed to "${templateId}"!`);
     } catch (err: any) {
-      alert(err.message || "Failed to update template");
+      toast.error(err.message || "Failed to update template");
     } finally {
       setSaving(false);
     }

@@ -9,8 +9,11 @@ import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import Textarea from "@/components/ui/Textarea";
 
+import { useToast } from "@/context/ToastContext";
+
 export default function NewCustomerPage() {
   const router = useRouter();
+  const { toast } = useToast();
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
     name: "",
@@ -23,7 +26,7 @@ export default function NewCustomerPage() {
 
   const handleSave = async () => {
     if (!form.name.trim()) {
-      alert("Customer name is required");
+      toast.error("Customer name is required.", "Missing Field");
       return;
     }
     setSaving(true);
@@ -31,10 +34,11 @@ export default function NewCustomerPage() {
       const { api } = await import("@/lib/api");
       const res = await api.createCustomer(form);
       if (res.success) {
+        toast.success(`Customer "${form.name}" created successfully!`);
         router.push("/dashboard/customers");
       }
     } catch (err: any) {
-      alert(err.message || "Failed to create customer");
+      toast.error(err.message || "Failed to create customer");
     } finally {
       setSaving(false);
     }

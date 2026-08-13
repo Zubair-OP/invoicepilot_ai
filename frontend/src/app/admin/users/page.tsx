@@ -8,7 +8,10 @@ import Loading from "@/components/ui/Loading";
 import { formatDate } from "@/lib/utils";
 import type { User } from "@/types";
 
+import { useToast } from "@/context/ToastContext";
+
 export default function AdminUsersPage() {
+  const { toast, confirmModal } = useToast();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -38,13 +41,20 @@ export default function AdminUsersPage() {
   }, [page, roleFilter]);
 
   const handleRoleChange = async (userId: string, newRole: string) => {
-    if (!confirm(`Change user role to ${newRole}?`)) return;
+    const ok = await confirmModal({
+      title: "Change User Role",
+      message: `Change user role to ${newRole}?`,
+      confirmText: "Change Role",
+      variant: newRole === "ADMIN" ? "danger" : "primary",
+    });
+    if (!ok) return;
     try {
       const { api } = await import("@/lib/api");
       await api.adminChangeRole(userId, newRole);
       setUsers(users.map((u) => (u._id === userId ? { ...u, role: newRole as "USER" | "ADMIN" } : u)));
+      toast.success(`Role updated to ${newRole}`);
     } catch (err: any) {
-      alert(err.message || "Failed to change role");
+      toast.error(err.message || "Failed to change role");
     }
   };
 

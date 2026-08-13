@@ -13,6 +13,8 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+import { ToastProvider } from "@/context/ToastContext";
+
 export const metadata: Metadata = {
   title: "Invoice Pilot - Create, Manage & Send Professional Invoices",
   description: "Professional invoice management for freelancers and businesses. Create, customize, and send invoices with AI assistance. GST-compliant PDF generation.",
@@ -23,7 +25,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <ClerkProvider>
       <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
         <body className="min-h-full flex flex-col bg-gray-50 text-gray-900" suppressHydrationWarning>
-          {children}
+          <ToastProvider>
+            {children}
+          </ToastProvider>
         </body>
       </html>
     </ClerkProvider>

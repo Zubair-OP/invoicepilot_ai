@@ -11,7 +11,10 @@ import EmptyState from "@/components/ui/EmptyState";
 import { formatCurrency, formatDate, getStatusColor } from "@/lib/utils";
 import type { Invoice } from "@/types";
 
+import { useToast } from "@/context/ToastContext";
+
 export default function InvoicesPage() {
+  const { toast, confirmModal } = useToast();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -24,12 +27,12 @@ export default function InvoicesPage() {
     try {
       const { api } = await import("@/lib/api");
       const params: Record<string, string> = { page: String(page), limit: "10" };
-      if (search) params.search = search;
       if (statusFilter) params.status = statusFilter;
+      if (search) params.search = search;
       const res = await api.getInvoices(params);
       if (res.success) {
         setInvoices(res.data);
-        setTotalPages(res.meta?.totalPages || 1);
+        if (res.meta) setTotalPages(res.meta.totalPages);
       }
     } catch {
       // Error handling
@@ -48,14 +51,21 @@ export default function InvoicesPage() {
     fetchInvoices();
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this invoice?")) return;
+  const handleDelete = async (id: string, invoiceNumber?: string) => {
+    const ok = await confirmModal({
+      title: "Delete Draft Invoice",
+      message: `Are you sure you want to delete ${invoiceNumber || "this draft invoice"}?`,
+      confirmText: "Delete",
+      variant: "danger",
+    });
+    if (!ok) return;
     try {
       const { api } = await import("@/lib/api");
       await api.deleteInvoice(id);
       setInvoices(invoices.filter((inv) => inv._id !== id));
-    } catch {
-      alert("Failed to delete invoice");
+      toast.success("Draft invoice deleted.");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to delete invoice");
     }
   };
 

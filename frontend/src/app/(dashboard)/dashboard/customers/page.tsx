@@ -10,7 +10,10 @@ import EmptyState from "@/components/ui/EmptyState";
 import { formatDate } from "@/lib/utils";
 import type { Customer } from "@/types";
 
+import { useToast } from "@/context/ToastContext";
+
 export default function CustomersPage() {
+  const { toast, confirmModal } = useToast();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -26,7 +29,7 @@ export default function CustomersPage() {
       const res = await api.getCustomers(params);
       if (res.success) {
         setCustomers(res.data);
-        setTotalPages(res.meta?.totalPages || 1);
+        if (res.meta) setTotalPages(res.meta.totalPages);
       }
     } catch {} finally {
       setLoading(false);
@@ -43,14 +46,21 @@ export default function CustomersPage() {
     fetchCustomers();
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Delete this customer?")) return;
+  const handleDelete = async (id: string, name?: string) => {
+    const ok = await confirmModal({
+      title: "Delete Customer",
+      message: `Are you sure you want to delete ${name ? `"${name}"` : "this customer"}?`,
+      confirmText: "Delete",
+      variant: "danger",
+    });
+    if (!ok) return;
     try {
       const { api } = await import("@/lib/api");
       await api.deleteCustomer(id);
       setCustomers(customers.filter((c) => c._id !== id));
-    } catch {
-      alert("Failed to delete customer");
+      toast.success("Customer deleted successfully.");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to delete customer");
     }
   };
 

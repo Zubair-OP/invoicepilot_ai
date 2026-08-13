@@ -8,9 +8,10 @@ import Input from "@/components/ui/Input";
 import Select from "@/components/ui/Select";
 import Textarea from "@/components/ui/Textarea";
 import Loading from "@/components/ui/Loading";
-import type { UserSettings } from "@/types";
+import { useToast } from "@/context/ToastContext";
 
 export default function SettingsPage() {
+  const { toast } = useToast();
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -34,9 +35,9 @@ export default function SettingsPage() {
     try {
       const { api } = await import("@/lib/api");
       await api.updateSettings(settings);
-      alert("Settings saved!");
+      toast.success("Business settings saved successfully!");
     } catch (err: any) {
-      alert(err.message || "Failed to save settings");
+      toast.error(err.message || "Failed to save settings");
     } finally {
       setSaving(false);
     }

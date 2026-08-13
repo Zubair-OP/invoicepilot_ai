@@ -13,7 +13,5 @@ export const REMINDER_SWEEP_JOB_NAME = "reminder-sweep";
 // this id, so re-running the worker never creates a second daily schedule.
 export const REMINDER_SWEEP_SCHEDULER_ID = "daily-reminder-sweep";
 
-// Daily at 08:00 UTC. Cron is evaluated in UTC (see scheduler.ts) so the sweep
-// fires at the same instant regardless of server timezone or DST — the
-// operational-safety requirement for Phase 7.
-export const REMINDER_SWEEP_CRON = "0 8 * * *";
+// Every 5 minutes for automated reminder testing in development.
+export const REMINDER_SWEEP_CRON = "*/5 * * * *";

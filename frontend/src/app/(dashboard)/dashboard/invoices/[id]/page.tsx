@@ -11,9 +11,12 @@ import Badge from "@/components/ui/Badge";
 import { formatCurrency, formatDate, getStatusColor } from "@/lib/utils";
 import type { Invoice } from "@/types";
 
+import { useToast } from "@/context/ToastContext";
+
 export default function InvoiceDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const { toast, confirmModal } = useToast();
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
@@ -38,32 +41,58 @@ export default function InvoiceDetailPage() {
       switch (action) {
         case "send":
           await api.sendInvoice(invoice!._id);
+          toast.success("Invoice marked as sent!");
           break;
         case "pay":
           await api.payInvoice(invoice!._id);
+          toast.success("Invoice marked as paid!");
           break;
         case "email":
           await api.sendInvoiceEmail(invoice!._id);
-          alert("Invoice sent via email!");
+          toast.success("Invoice sent via email with PDF attachment!");
           break;
-        case "void":
-          if (!confirm(`Are you sure you want to void invoice ${invoice!.invoiceNumber}?\n\nThis will mark it as CANCELLED. You can restore it later if needed.`)) return;
+        case "void": {
+          const ok = await confirmModal({
+            title: "Void Invoice",
+            message: `Are you sure you want to void invoice ${invoice!.invoiceNumber}?\n\nThis will mark it as CANCELLED. You can restore it later if needed.`,
+            confirmText: "Void Invoice",
+            variant: "danger",
+          });
+          if (!ok) return;
           await api.voidInvoice(invoice!._id);
+          toast.warning("Invoice has been voided.");
           break;
-        case "unvoid":
-          if (!confirm(`Restore invoice ${invoice!.invoiceNumber} back to its previous status?`)) return;
+        }
+        case "unvoid": {
+          const ok = await confirmModal({
+            title: "Restore Invoice",
+            message: `Restore invoice ${invoice!.invoiceNumber} back to its previous status?`,
+            confirmText: "Restore",
+            variant: "primary",
+          });
+          if (!ok) return;
           await api.unvoidInvoice(invoice!._id);
+          toast.success("Invoice restored successfully!");
           break;
-        case "delete":
-          if (!confirm("Permanently delete this draft invoice? This cannot be undone.")) return;
+        }
+        case "delete": {
+          const ok = await confirmModal({
+            title: "Delete Draft Invoice",
+            message: "Permanently delete this draft invoice? This action cannot be undone.",
+            confirmText: "Delete",
+            variant: "danger",
+          });
+          if (!ok) return;
           await api.deleteInvoice(invoice!._id);
+          toast.info("Draft invoice deleted.");
           router.push("/dashboard/invoices");
           return;
+        }
       }
       const res = await api.getInvoice(params.id as string);
       if (res.success) setInvoice(res.data);
     } catch (err: any) {
-      alert(err.message || "Action failed");
+      toast.error(err.message || "Action failed");
     } finally {
       setActionLoading(false);
     }

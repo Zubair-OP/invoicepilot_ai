@@ -21,6 +21,7 @@ interface InvoiceItem {
 
 export default function NewInvoicePage() {
   const router = useRouter();
+  const { toast } = useToast();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -71,7 +72,10 @@ export default function NewInvoicePage() {
   const total = subtotal + taxTotal - form.discount;
 
   const handleAiGenerate = async () => {
-    if (!aiPrompt.trim()) return;
+    if (!aiPrompt.trim()) {
+      toast.warning("Please enter a prompt describing the invoice");
+      return;
+    }
     setAiLoading(true);
     try {
       const { api } = await import("@/lib/api");
@@ -89,9 +93,10 @@ export default function NewInvoicePage() {
           dueDate: draft.dueDate ? draft.dueDate.split("T")[0] : "",
         }));
         setShowAi(false);
+        toast.success("Invoice fields filled with AI successfully!");
       }
     } catch (err: any) {
-      alert(err.message || "AI generation failed");
+      toast.error(err.message || "AI generation failed");
     } finally {
       setAiLoading(false);
     }
@@ -99,11 +104,11 @@ export default function NewInvoicePage() {
 
   const handleSave = async () => {
     if (!form.customerId) {
-      alert("Please select a customer");
+      toast.error("Please select a customer");
       return;
     }
-    if (form.items.some((item) => !item.description)) {
-      alert("Please fill in all item descriptions");
+    if (form.items.some((item) => !item.description.trim())) {
+      toast.error("Please fill in all item descriptions");
       return;
     }
     setSaving(true);
@@ -123,10 +128,11 @@ export default function NewInvoicePage() {
         dueDate: form.dueDate || undefined,
       });
       if (res.success) {
+        toast.success("Invoice created successfully!");
         router.push(`/dashboard/invoices/${res.data._id}`);
       }
     } catch (err: any) {
-      alert(err.message || "Failed to create invoice");
+      toast.error(err.message || "Failed to create invoice");
     } finally {
       setSaving(false);
     }
