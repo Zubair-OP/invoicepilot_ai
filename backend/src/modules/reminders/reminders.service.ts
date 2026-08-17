@@ -49,9 +49,8 @@ export async function runOverdueSweep(now: Date): Promise<OverdueSweepResult> {
   return { markedOverdue: result.modifiedCount };
 }
 
-// Default sweep interval for users who haven't set a custom one (matches old
-// hardcoded */5 cron behaviour).
-const DEFAULT_INTERVAL_MINUTES = 5;
+// Default sweep interval for Free/Pro users who haven't customized: 24 hours (1440 minutes / 1 day).
+const DEFAULT_INTERVAL_MINUTES = 1440;
 
 /**
  * Scans active invoices and queues at most one reminder per invoice per run —

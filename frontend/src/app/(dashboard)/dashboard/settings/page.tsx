@@ -27,7 +27,11 @@ export default function SettingsPage() {
           api.getSubscription(),
         ]);
         if (settingsRes.success) {
-          setSettings(settingsRes.data);
+          const loadedData = settingsRes.data;
+          if (loadedData?.reminders && (typeof loadedData.reminders.intervalMinutes !== "number" || loadedData.reminders.intervalMinutes < 15)) {
+            loadedData.reminders.intervalMinutes = 1440;
+          }
+          setSettings(loadedData);
         }
         if (billingRes.success) {
           setIsPremium(billingRes.data?.subscription?.planKey === "premium");
@@ -44,7 +48,11 @@ export default function SettingsPage() {
     setSaving(true);
     try {
       const { api } = await import("@/lib/api");
-      await api.updateSettings(settings);
+      const payload = { ...settings };
+      if (payload.reminders && (typeof payload.reminders.intervalMinutes !== "number" || payload.reminders.intervalMinutes < 5)) {
+        payload.reminders.intervalMinutes = 1440;
+      }
+      await api.updateSettings(payload);
       toast.success("Business settings saved successfully!");
     } catch (err: any) {
       toast.error(err.message || "Failed to save settings");
@@ -188,52 +196,44 @@ export default function SettingsPage() {
           </label>
           {settings.reminders.enabled && (
             <>
-              <Input
-                label="Reminder Schedule (days relative to due date, e.g. -3 = 3 days before, 1 = 1 day after)"
-                value={settings.reminders.offsets.join(", ")}
-                onChange={(e) => setSettings({
-                  ...settings,
-                  reminders: { ...settings.reminders, offsets: e.target.value.split(",").map(Number).filter(Boolean) }
-                })}
-                placeholder="-3, 1, 7, 14"
-              />
 
-              {/* Custom sweep interval — premium only */}
+              {/* Custom sweep interval / Check Frequency */}
               <div>
                 <div className="flex items-center gap-2 mb-1">
                   <label className="block text-sm font-medium text-gray-700">
-                    Check Interval (minutes)
+                    Check Frequency
                   </label>
                   {!isPremium && (
                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-700">
                       <Crown className="w-3 h-3" />
-                      Premium
+                      Premium Feature
                     </span>
                   )}
                 </div>
-                <input
-                  type="number"
-                  min={5}
-                  max={1440}
+                <Select
+                  id="reminderInterval"
                   disabled={!isPremium}
-                  value={settings.reminders.intervalMinutes ?? 5}
+                  value={String(settings.reminders.intervalMinutes ?? 1440)}
                   onChange={(e) => setSettings({
                     ...settings,
                     reminders: {
                       ...settings.reminders,
-                      intervalMinutes: Math.max(5, Math.min(1440, parseInt(e.target.value) || 5)),
+                      intervalMinutes: parseInt(e.target.value) || 1440,
                     },
                   })}
-                  className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 ${
-                    isPremium
-                      ? "border-gray-300 bg-white text-gray-900"
-                      : "border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed"
-                  }`}
+                  options={[
+                    { value: "60", label: "Every 1 Hour (60 mins)" },
+                    { value: "120", label: "Every 2 Hours (120 mins)" },
+                    { value: "240", label: "Every 4 Hours (240 mins)" },
+                    { value: "360", label: "Every 6 Hours (360 mins)" },
+                    { value: "720", label: "Every 12 Hours (720 mins)" },
+                    { value: "1440", label: "Daily / Every 24 Hours (Default)" },
+                  ]}
                 />
                 <p className="text-[11px] text-gray-500 mt-1">
                   {isPremium
-                    ? "How often the system checks your invoices for due reminders. Lower = faster delivery, higher = less frequent checks."
-                    : "Upgrade to Premium to customize how often reminders are checked. Default: every 5 minutes."}
+                    ? "Choose how often the system sweeps your active invoices to check and dispatch due payment reminders."
+                    : "Free & Pro plans check invoices once per day (Every 24 Hours). Upgrade to Premium to check as frequently as every hour."}
                 </p>
               </div>
             </>
