@@ -22,6 +22,7 @@ const reminderSettingsSchema = new Schema<IReminderSettings>(
   {
     enabled: { type: Boolean, default: true },
     offsets: { type: [Number], default: [-3, 1, 7, 14] },
+    intervalMinutes: { type: Number, min: 5, max: 1440 },
   },
   { _id: false }
 );
@@ -78,6 +79,7 @@ const userSchema = new Schema<UserDocument>(
     role: { type: String, enum: ["USER", "ADMIN"], default: "USER" },
     settings: { type: settingsSchema, default: () => ({}) },
     subscription: { type: subscriptionSchema, default: () => ({}) },
+    lastSweptAt: { type: Date },
     deletedAt: { type: Date },
   },
   { timestamps: true }

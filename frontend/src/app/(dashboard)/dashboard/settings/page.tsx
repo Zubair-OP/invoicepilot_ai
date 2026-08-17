@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Save, Mail, Building2, FileText, Bell, KeyRound } from "lucide-react";
+import { Save, Building2, FileText, Bell, Crown } from "lucide-react";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
@@ -16,18 +16,21 @@ export default function SettingsPage() {
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [showCustomSmtp, setShowCustomSmtp] = useState(false);
+  const [isPremium, setIsPremium] = useState(false);
 
   useEffect(() => {
     async function load() {
       try {
         const { api } = await import("@/lib/api");
-        const res = await api.getSettings();
-        if (res.success) {
-          setSettings(res.data);
-          if (res.data.customSmtp?.user || res.data.customSmtp?.pass) {
-            setShowCustomSmtp(true);
-          }
+        const [settingsRes, billingRes] = await Promise.all([
+          api.getSettings(),
+          api.getSubscription(),
+        ]);
+        if (settingsRes.success) {
+          setSettings(settingsRes.data);
+        }
+        if (billingRes.success) {
+          setIsPremium(billingRes.data?.subscription?.planKey === "premium");
         }
       } catch {} finally {
         setLoading(false);
@@ -119,93 +122,6 @@ export default function SettingsPage() {
         </div>
       </Card>
 
-      {/* Custom Email / Gmail SMTP Settings */}
-      <Card>
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-2">
-            <Mail className="w-5 h-5 text-indigo-600" />
-            <div>
-              <h3 className="font-semibold text-gray-900">Custom Email SMTP (Optional)</h3>
-              <p className="text-xs text-gray-500">Send invoices directly through your own Gmail / SMTP account</p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={() => setShowCustomSmtp(!showCustomSmtp)}
-            className="text-xs text-indigo-600 hover:text-indigo-700 font-semibold"
-          >
-            {showCustomSmtp ? "Hide Settings" : "Configure Custom SMTP"}
-          </button>
-        </div>
-
-        {showCustomSmtp && (
-          <div className="mt-4 pt-4 border-t border-gray-100 space-y-4">
-            <div className="p-3 bg-blue-50 border border-blue-100 rounded-xl text-xs text-blue-800 space-y-1">
-              <p className="font-bold">💡 How Gmail App Passwords work:</p>
-              <p>
-                To send emails directly from your personal Gmail address, create a Google 16-character <strong>App Password</strong> under your Google Account &rarr; Security &rarr; 2-Step Verification &rarr; App Passwords.
-              </p>
-              <p className="text-gray-600 mt-1">
-                If left empty, InvoicePilot will automatically send via the default mail server on your behalf with your business email as the reply-to address.
-              </p>
-            </div>
-
-            <div className="grid sm:grid-cols-2 gap-4">
-              <Input
-                label="SMTP Host"
-                value={settings.customSmtp?.host || "smtp.gmail.com"}
-                onChange={(e) =>
-                  setSettings({
-                    ...settings,
-                    customSmtp: { ...settings.customSmtp, host: e.target.value },
-                  })
-                }
-                placeholder="smtp.gmail.com"
-              />
-              <Input
-                label="SMTP Port"
-                type="number"
-                value={settings.customSmtp?.port || 587}
-                onChange={(e) =>
-                  setSettings({
-                    ...settings,
-                    customSmtp: { ...settings.customSmtp, port: parseInt(e.target.value) || 587 },
-                  })
-                }
-                placeholder="587 or 465"
-              />
-            </div>
-
-            <div className="grid sm:grid-cols-2 gap-4">
-              <Input
-                label="Your Gmail / SMTP Username"
-                type="email"
-                value={settings.customSmtp?.user || ""}
-                onChange={(e) =>
-                  setSettings({
-                    ...settings,
-                    customSmtp: { ...settings.customSmtp, user: e.target.value },
-                  })
-                }
-                placeholder="your.email@gmail.com"
-              />
-              <Input
-                label="Google App Password (16 chars)"
-                type="password"
-                value={settings.customSmtp?.pass || ""}
-                onChange={(e) =>
-                  setSettings({
-                    ...settings,
-                    customSmtp: { ...settings.customSmtp, pass: e.target.value },
-                  })
-                }
-                placeholder="abcd efgh ijkl mnop"
-              />
-            </div>
-          </div>
-        )}
-      </Card>
-
       {/* Invoice Defaults */}
       <Card>
         <div className="flex items-center gap-2 mb-4">
@@ -271,18 +187,60 @@ export default function SettingsPage() {
             <span className="text-sm font-medium text-gray-700">Enable automatic payment reminders for overdue invoices</span>
           </label>
           {settings.reminders.enabled && (
-            <Input
-              label="Reminder Schedule (days relative to due date, e.g. -3 = 3 days before, 1 = 1 day after)"
-              value={settings.reminders.offsets.join(", ")}
-              onChange={(e) => setSettings({
-                ...settings,
-                reminders: { ...settings.reminders, offsets: e.target.value.split(",").map(Number).filter(Boolean) }
-              })}
-              placeholder="-3, 1, 7, 14"
-            />
+            <>
+              <Input
+                label="Reminder Schedule (days relative to due date, e.g. -3 = 3 days before, 1 = 1 day after)"
+                value={settings.reminders.offsets.join(", ")}
+                onChange={(e) => setSettings({
+                  ...settings,
+                  reminders: { ...settings.reminders, offsets: e.target.value.split(",").map(Number).filter(Boolean) }
+                })}
+                placeholder="-3, 1, 7, 14"
+              />
+
+              {/* Custom sweep interval — premium only */}
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <label className="block text-sm font-medium text-gray-700">
+                    Check Interval (minutes)
+                  </label>
+                  {!isPremium && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-700">
+                      <Crown className="w-3 h-3" />
+                      Premium
+                    </span>
+                  )}
+                </div>
+                <input
+                  type="number"
+                  min={5}
+                  max={1440}
+                  disabled={!isPremium}
+                  value={settings.reminders.intervalMinutes ?? 5}
+                  onChange={(e) => setSettings({
+                    ...settings,
+                    reminders: {
+                      ...settings.reminders,
+                      intervalMinutes: Math.max(5, Math.min(1440, parseInt(e.target.value) || 5)),
+                    },
+                  })}
+                  className={`w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 ${
+                    isPremium
+                      ? "border-gray-300 bg-white text-gray-900"
+                      : "border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed"
+                  }`}
+                />
+                <p className="text-[11px] text-gray-500 mt-1">
+                  {isPremium
+                    ? "How often the system checks your invoices for due reminders. Lower = faster delivery, higher = less frequent checks."
+                    : "Upgrade to Premium to customize how often reminders are checked. Default: every 5 minutes."}
+                </p>
+              </div>
+            </>
           )}
         </div>
       </Card>
     </div>
   );
 }
+

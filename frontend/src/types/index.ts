@@ -90,6 +90,7 @@ export interface UserSettings {
   reminders: {
     enabled: boolean;
     offsets: number[];
+    intervalMinutes?: number;
   };
 }
 

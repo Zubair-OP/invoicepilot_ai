@@ -13,5 +13,6 @@ export const REMINDER_SWEEP_JOB_NAME = "reminder-sweep";
 // this id, so re-running the worker never creates a second daily schedule.
 export const REMINDER_SWEEP_SCHEDULER_ID = "daily-reminder-sweep";
 
-// Every 5 minutes for automated reminder testing in development.
-export const REMINDER_SWEEP_CRON = "*/5 * * * *";
+// Every minute so per-user custom intervals (minimum 5 min) are honoured accurately.
+// The sweep is lightweight for users whose interval hasn't elapsed — they are skipped.
+export const REMINDER_SWEEP_CRON = "* * * * *";

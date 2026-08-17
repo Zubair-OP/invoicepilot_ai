@@ -25,15 +25,27 @@ export async function updateSettings(
   const user = await User.findOne({ _id: userId, deletedAt: { $exists: false } });
   if (!user) throw new NotFoundError("User");
 
+  const planKey = user.subscription?.planKey ?? "free";
+  const plan = getPlanByKey(planKey);
+
   // Validate template access based on user's active plan
   if (data.templateId) {
-    const planKey = user.subscription?.planKey ?? "free";
-    const plan = getPlanByKey(planKey);
     const allowed = plan?.limits.templatesAllowed ?? ["classic"];
     if (!allowed.includes(data.templateId)) {
       throw new PaymentRequiredError(
         `The "${data.templateId}" template requires an upgrade. It is not available on the ${plan?.name ?? "Free"} plan.`,
         { templateId: data.templateId, planKey, requiredPlan: data.templateId === "minimal" ? "premium" : "pro" }
+      );
+    }
+  }
+
+  // Validate custom reminder interval — premium-only feature
+  if (data.reminders?.intervalMinutes !== undefined) {
+    const canCustomize = plan?.limits.customReminderInterval ?? false;
+    if (!canCustomize) {
+      throw new PaymentRequiredError(
+        "Custom reminder interval is a Premium feature. Upgrade your plan to customize the sweep cadence.",
+        { planKey, requiredPlan: "premium" }
       );
     }
   }

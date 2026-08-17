@@ -49,9 +49,18 @@ export async function runOverdueSweep(now: Date): Promise<OverdueSweepResult> {
   return { markedOverdue: result.modifiedCount };
 }
 
+// Default sweep interval for users who haven't set a custom one (matches old
+// hardcoded */5 cron behaviour).
+const DEFAULT_INTERVAL_MINUTES = 5;
+
 /**
  * Scans active invoices and queues at most one reminder per invoice per run —
  * the milestone the invoice is currently due for (see `selectDueReminder`).
+ *
+ * Per-user interval gating:
+ *  - Each user's `lastSweptAt` is compared against their `intervalMinutes`.
+ *  - If the interval hasn't elapsed, the user's invoices are skipped entirely.
+ *  - After processing, `lastSweptAt` is atomically updated on the User doc.
  *
  * Safety properties:
  *  - Streamed via a cursor, so memory stays flat regardless of tenant size.
@@ -73,6 +82,8 @@ export async function runReminderSweep(now: Date): Promise<ReminderSweepSummary>
 
   const settingsCache = new Map<string, IReminderSettings>();
   const emailCache = new Map<string, string | null>();
+  // Track which users have been interval-checked and whether they passed.
+  const intervalCache = new Map<string, boolean>();
 
   const filter: FilterQuery<InvoiceDocument> = { status: { $in: ACTIVE_STATUSES } };
   const cursor = Invoice.find(filter)
@@ -80,10 +91,22 @@ export async function runReminderSweep(now: Date): Promise<ReminderSweepSummary>
     .lean()
     .cursor({ batchSize: 100 });
 
+  // Users whose invoices were actually processed this run (need lastSweptAt update).
+  const processedUserIds = new Set<string>();
+
   for await (const invoice of cursor) {
     summary.scanned += 1;
 
     const userId = invoice.userId.toString();
+
+    // ── Per-user interval gating ──────────────────────────────
+    let intervalAllowed = intervalCache.get(userId);
+    if (intervalAllowed === undefined) {
+      intervalAllowed = await isUserDueForSweep(userId, now);
+      intervalCache.set(userId, intervalAllowed);
+    }
+    if (!intervalAllowed) continue;
+
     const settings = await resolveReminderSettings(userId, settingsCache);
     if (!settings.enabled) {
       summary.skippedDisabled += 1;
@@ -108,10 +131,39 @@ export async function runReminderSweep(now: Date): Promise<ReminderSweepSummary>
 
     const queued = await recordAndQueueReminder(userId, invoice._id.toString(), due.type, email);
     if (queued) summary.remindersQueued += 1;
+    processedUserIds.add(userId);
+  }
+
+  // Stamp `lastSweptAt` on every user we actually processed invoices for.
+  if (processedUserIds.size > 0) {
+    await User.updateMany(
+      { _id: { $in: [...processedUserIds] } },
+      { $set: { lastSweptAt: now } }
+    );
   }
 
   logger.info({ ...summary }, "Reminder sweep complete");
   return summary;
+}
+
+/**
+ * Checks whether enough time has elapsed since the user's last sweep, based on
+ * their configured `intervalMinutes` (default 5). Returns `true` when the user
+ * should be processed this run.
+ */
+async function isUserDueForSweep(userId: string, now: Date): Promise<boolean> {
+  const user = await User.findOne({ _id: userId, deletedAt: { $exists: false } })
+    .select("settings.reminders.intervalMinutes lastSweptAt")
+    .lean();
+
+  const intervalMinutes = user?.settings?.reminders?.intervalMinutes ?? DEFAULT_INTERVAL_MINUTES;
+  const lastSweptAt = user?.lastSweptAt;
+
+  // Never swept before — always process.
+  if (!lastSweptAt) return true;
+
+  const elapsedMs = now.getTime() - new Date(lastSweptAt).getTime();
+  return elapsedMs >= intervalMinutes * 60 * 1000;
 }
 
 /**

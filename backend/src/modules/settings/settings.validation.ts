@@ -20,6 +20,7 @@ const reminderSettingsSchema = z.object({
     .min(1, "At least one offset is required")
     .max(10, "At most 10 offsets")
     .refine((offsets) => new Set(offsets).size === offsets.length, "Offsets must be unique"),
+  intervalMinutes: z.number().int().min(5).max(1440).optional(),
 });
 
 const customSmtpSchema = z.object({

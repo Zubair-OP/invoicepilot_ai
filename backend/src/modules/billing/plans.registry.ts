@@ -5,6 +5,7 @@ export interface PlanLimits {
   customers: number;             // -1 = unlimited
   aiGenerationsPerMonth: number; // -1 = unlimited
   templatesAllowed: string[];    // template ids from the Phase 3 registry
+  customReminderInterval: boolean; // can the tenant set their own sweep cadence?
 }
 
 export interface PlanDefinition {
@@ -36,6 +37,7 @@ export const PLANS: readonly PlanDefinition[] = [
       customers: 10,
       aiGenerationsPerMonth: 5,
       templatesAllowed: ["classic"],
+      customReminderInterval: false,
     },
     priceMonthly: 0,
   },
@@ -49,6 +51,7 @@ export const PLANS: readonly PlanDefinition[] = [
       customers: -1,
       aiGenerationsPerMonth: 200,
       templatesAllowed: ["classic", "modern"],
+      customReminderInterval: false,
     },
     priceMonthly: 19,
   },
@@ -62,6 +65,7 @@ export const PLANS: readonly PlanDefinition[] = [
       customers: -1,
       aiGenerationsPerMonth: -1,
       templatesAllowed: ["classic", "modern", "minimal"],
+      customReminderInterval: true,
     },
     priceMonthly: 49,
   },

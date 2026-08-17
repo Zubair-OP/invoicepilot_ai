@@ -12,6 +12,7 @@ import { renderMinimal } from "./templates/minimal.js";
 // overhead. Launch lazily on first use and close it in the existing SIGTERM
 // handler in app.ts.
 let browser: Browser | null = null;
+let launchPromise: Promise<Browser> | null = null;
 
 // Concurrency cap: 3 simultaneous renders. Playwright is memory-heavy; without a
 // cap, a handful of concurrent requests can OOM the container. Requests beyond the
@@ -20,36 +21,110 @@ let activeRenders = 0;
 const MAX_CONCURRENT_RENDERS = 3;
 
 async function getBrowser(): Promise<Browser> {
-  if (!browser) {
-    browser = await chromium.launch({
-      headless: true,
-      args: [
-        "--no-sandbox",
-        "--disable-setuid-sandbox",
-        "--disable-dev-shm-usage",
-        "--disable-gpu",
-        "--no-first-run",
-        "--no-zygote",
-        "--single-process",
-      ],
-    });
-    logger.info("Playwright browser launched");
+  if (browser && browser.isConnected()) {
+    return browser;
   }
-  return browser;
+
+  if (launchPromise) {
+    return launchPromise;
+  }
+
+  launchPromise = (async () => {
+    try {
+      if (browser) {
+        try {
+          if (browser.isConnected()) {
+            await browser.close().catch(() => {});
+          }
+        } finally {
+          browser = null;
+        }
+      }
+
+      const instance = await chromium.launch({
+        headless: true,
+        args: [
+          "--no-sandbox",
+          "--disable-setuid-sandbox",
+          "--disable-dev-shm-usage",
+          "--disable-gpu",
+          "--no-first-run",
+        ],
+      });
+
+      instance.on("disconnected", () => {
+        logger.warn("Playwright browser disconnected");
+        if (browser === instance) {
+          browser = null;
+        }
+      });
+
+      browser = instance;
+      logger.info("Playwright browser launched");
+      return instance;
+    } finally {
+      launchPromise = null;
+    }
+  })();
+
+  return launchPromise;
 }
 
 export async function closeBrowser(): Promise<void> {
   if (browser) {
-    await browser.close();
-    browser = null;
-    logger.info("Playwright browser closed");
+    try {
+      if (browser.isConnected()) {
+        await browser.close();
+      }
+    } catch (err) {
+      logger.warn({ err }, "Error closing Playwright browser");
+    } finally {
+      browser = null;
+      launchPromise = null;
+      logger.info("Playwright browser closed");
+    }
+  }
+}
+
+/**
+ * Core PDF rendering using an isolated browser context and page.
+ */
+async function renderInvoicePDFCore(
+  invoice: InvoiceDocument,
+  customer: CustomerDocument,
+  templateId: string
+): Promise<Buffer> {
+  const b = await getBrowser();
+  const context = await b.newContext();
+
+  try {
+    const page = await context.newPage();
+    try {
+      // Render timeout (~15s) so a stuck render doesn't hang forever.
+      page.setDefaultTimeout(15000);
+
+      const html = selectTemplate(templateId)(invoice, customer);
+      await page.setContent(html, { waitUntil: "load" });
+
+      const pdf = await page.pdf({
+        format: "A4",
+        printBackground: true,
+        margin: { top: "20mm", bottom: "20mm", left: "15mm", right: "15mm" },
+      });
+
+      return Buffer.from(pdf);
+    } finally {
+      await page.close().catch(() => {});
+    }
+  } finally {
+    await context.close().catch(() => {});
   }
 }
 
 /**
  * Renders an invoice to PDF. Reuses one browser instance across requests;
  * templates as functions returning HTML strings; no network fetches during
- * render; caps concurrent renders to avoid OOM.
+ * render; caps concurrent renders to avoid OOM; auto-heals if browser crashes.
  */
 export async function renderInvoicePDF(
   invoice: InvoiceDocument,
@@ -62,30 +137,40 @@ export async function renderInvoicePDF(
   }
 
   activeRenders++;
-  const b = await getBrowser();
-  let page: Page | null = null;
 
   try {
-    page = await b.newPage();
+    try {
+      return await renderInvoicePDFCore(invoice, customer, templateId);
+    } catch (firstErr: any) {
+      // If browser was closed / crashed or target closed, reset browser and retry once with a fresh instance
+      const isTargetOrClosedError =
+        !browser ||
+        !browser.isConnected() ||
+        (firstErr?.message && (
+          firstErr.message.includes("closed") ||
+          firstErr.message.includes("Target") ||
+          firstErr.message.includes("Crash") ||
+          firstErr.message.includes("disconnected")
+        ));
 
-    // Render timeout (~15s) so a stuck render doesn't hang forever.
-    page.setDefaultTimeout(15000);
+      if (isTargetOrClosedError) {
+        logger.warn({ err: firstErr, invoiceId: invoice._id }, "PDF rendering hit closed/crashed browser, relaunching and retrying once...");
+        if (browser) {
+          try {
+            await browser.close().catch(() => {});
+          } finally {
+            browser = null;
+          }
+        }
+        return await renderInvoicePDFCore(invoice, customer, templateId);
+      }
 
-    const html = selectTemplate(templateId)(invoice, customer);
-    await page.setContent(html, { waitUntil: "networkidle" });
-
-    const pdf = await page.pdf({
-      format: "A4",
-      printBackground: true,
-      margin: { top: "20mm", bottom: "20mm", left: "15mm", right: "15mm" },
-    });
-
-    return Buffer.from(pdf);
+      throw firstErr;
+    }
   } catch (error) {
     logger.error({ err: error, invoiceId: invoice._id }, "PDF rendering failed");
     throw new ServiceUnavailableError("PDF rendering failed");
   } finally {
-    if (page) await page.close();
     activeRenders--;
   }
 }

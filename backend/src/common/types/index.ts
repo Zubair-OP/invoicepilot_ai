@@ -73,6 +73,7 @@ export interface IUser {
   role: UserRole;
   settings: IUserSettings;
   subscription: IUserSubscription;
+  lastSweptAt?: Date;                    // last time the reminder sweep processed this tenant
   deletedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
@@ -159,9 +160,12 @@ export interface IReminderSent {
 
 // Per-tenant dunning configuration. Offsets are days relative to `dueDate`:
 // negative = before due (upcoming), positive = after due (overdue).
+// `intervalMinutes` controls how often the sweep processes this tenant's invoices
+// (premium-only; defaults to 5 min for all other plans).
 export interface IReminderSettings {
   enabled: boolean;
   offsets: number[];
+  intervalMinutes?: number;              // 5–1440; premium-only customization
 }
 
 // One entry per successful send — a lightweight audit trail on the invoice so a
