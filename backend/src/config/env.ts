@@ -34,6 +34,7 @@ const envSchema = z.object({
   STRIPE_PUBLISHABLE_KEY: z.string().optional(),
 
   GROQ_API_KEY: z.string().optional(),
+  GROQ_MODEL: z.string().default("llama-3.3-70b-versatile"),
 
   RESEND_API_KEY: z.string().optional(),
 

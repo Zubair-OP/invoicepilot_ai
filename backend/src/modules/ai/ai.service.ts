@@ -14,6 +14,92 @@ import { recordUsage } from "../billing/index.js";
 
 const groq = env.GROQ_API_KEY ? new Groq({ apiKey: env.GROQ_API_KEY }) : null;
 
+let cachedModels: string[] = [];
+let lastFetchedTime = 0;
+
+async function getCandidateModels(): Promise<string[]> {
+  const models = new Set<string>();
+  if (env.GROQ_MODEL) {
+    models.add(env.GROQ_MODEL);
+  }
+
+  const now = Date.now();
+  if (groq && (cachedModels.length === 0 || now - lastFetchedTime > 3600000)) {
+    try {
+      const res = await groq.models.list();
+      if (res && Array.isArray(res.data)) {
+        const textModels = res.data
+          .filter((m: any) => m.active !== false && !m.id.includes("whisper") && !m.id.includes("tts") && !m.id.includes("guard"))
+          .map((m: any) => m.id);
+        if (textModels.length > 0) {
+          cachedModels = textModels;
+          lastFetchedTime = now;
+          logger.info({ activeGroqModels: cachedModels }, "Discovered active Groq models dynamically");
+        }
+      }
+    } catch (err: any) {
+      logger.warn({ err: err?.message }, "Failed to dynamically query Groq models list, using fallbacks");
+    }
+  }
+
+  for (const m of cachedModels) {
+    models.add(m);
+  }
+
+  const staticFallbacks = [
+    "llama-3.3-70b-versatile",
+    "llama-3.1-8b-instant",
+    "mixtral-8x7b-32768",
+    "gemma2-9b-it",
+    "qwen-2.5-32b",
+    "deepseek-r1-distill-llama-70b",
+  ];
+  for (const m of staticFallbacks) {
+    models.add(m);
+  }
+
+  return Array.from(models);
+}
+
+async function createCompletionWithFallback(
+  params: Omit<Groq.Chat.Completions.CompletionCreateParamsNonStreaming, "model">,
+  options?: { signal?: AbortSignal }
+) {
+  if (!groq) {
+    throw new ServiceUnavailableError("AI generation unavailable (GROQ_API_KEY not set)");
+  }
+
+  const candidateModels = await getCandidateModels();
+  let lastError: any = null;
+
+  for (const model of candidateModels) {
+    try {
+      return await groq.chat.completions.create(
+        { ...params, model },
+        options
+      );
+    } catch (err: any) {
+      lastError = err;
+      const errMsg = String(err?.message || "").toLowerCase();
+      const isUnavailable =
+        err?.status === 404 ||
+        err?.status === 400 ||
+        errMsg.includes("model_not_found") ||
+        errMsg.includes("does not exist") ||
+        errMsg.includes("decommissioned") ||
+        errMsg.includes("deprecated") ||
+        errMsg.includes("do not have access");
+
+      if (isUnavailable) {
+        logger.warn({ model, error: err?.message }, "Groq model unavailable, trying fallback model");
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw lastError;
+}
+
 interface InvoiceDraft {
   customerId?: string;
   suggestedCustomer?: { name: string };
@@ -70,9 +156,8 @@ export async function generateInvoice(
   try {
     // Structured output: Groq JSON mode ensures parseable JSON. The response is
     // still validated through Zod — never trust raw model output.
-    const response = await groq.chat.completions.create(
+    const response = await createCompletionWithFallback(
       {
-        model: "llama-3.3-70b-versatile",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
@@ -138,9 +223,8 @@ async function parseAndValidate(
       const retryPrompt = `${userPrompt}\n\nThe previous response failed validation: ${errorSummary}. Please correct and return valid JSON.`;
 
       try {
-        const retryResponse = await groq!.chat.completions.create(
+        const retryResponse = await createCompletionWithFallback(
           {
-            model: "llama-3.3-70b-versatile",
             messages: [
               { role: "system", content: systemPrompt },
               { role: "user", content: retryPrompt },
@@ -244,9 +328,8 @@ export async function chat(userId: string, input: ChatInput): Promise<{ reply: s
   const timeoutId = setTimeout(() => controller.abort(), 30000);
 
   try {
-    const response = await groq.chat.completions.create(
+    const response = await createCompletionWithFallback(
       {
-        model: "llama-3.3-70b-versatile",
         messages: [
           { role: "system", content: buildSystemPrompt(settings) },
           ...input.messages,
