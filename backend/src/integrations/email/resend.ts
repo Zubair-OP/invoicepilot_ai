@@ -44,6 +44,14 @@ export async function sendEmail(params: SendEmailParams): Promise<void> {
     return;
   }
 
+  if (!env.EMAIL_FROM) {
+    logger.info(
+      { to: params.to, subject: params.subject },
+      "[Email Stub] EMAIL_FROM unset - Resend email not sent"
+    );
+    return;
+  }
+
   const { data, error } = await resend.emails.send({
     from: env.EMAIL_FROM,
     to: params.to,

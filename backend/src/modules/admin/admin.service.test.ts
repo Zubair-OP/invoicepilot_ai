@@ -30,6 +30,7 @@ describe("admin user management", () => {
   beforeEach(async () => {
     await User.deleteMany({ clerkId: /^user_phase2_admin_/ });
     await ActivityLog.deleteMany({ action: "USER_ROLE_CHANGED" });
+    await User.updateMany({ role: "ADMIN" }, { $set: { role: "USER" } });
     redisMock.invalidateAuthUser.mockReset();
     redisMock.invalidateAuthUser.mockResolvedValue();
   });

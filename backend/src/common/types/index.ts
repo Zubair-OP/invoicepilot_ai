@@ -73,10 +73,20 @@ export interface IUser {
   role: UserRole;
   settings: IUserSettings;
   subscription: IUserSubscription;
+  googleAccount?: IGoogleAccount;
   lastSweptAt?: Date;                    // last time the reminder sweep processed this tenant
   deletedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface IGoogleAccount {
+  connected: boolean;
+  email?: string;
+  accessToken?: string;
+  refreshToken?: string;
+  expiresAt?: number;
+  connectedAt?: Date;
 }
 
 // ─── Billing / plan limits (Phase 8) ─────────────────────

@@ -1,5 +1,12 @@
 import mongoose, { Schema, Document } from "mongoose";
-import type { IUser, IUserSettings, ITaxComponent, IReminderSettings, IUserSubscription } from "../../common/types/index.js";
+import type {
+  IUser,
+  IUserSettings,
+  ITaxComponent,
+  IReminderSettings,
+  IUserSubscription,
+  IGoogleAccount,
+} from "../../common/types/index.js";
 
 export type UserDocument = IUser & Document;
 
@@ -69,6 +76,18 @@ const subscriptionSchema = new Schema<IUserSubscription>(
   { _id: false }
 );
 
+const googleAccountSchema = new Schema<IGoogleAccount>(
+  {
+    connected: { type: Boolean, default: false },
+    email: { type: String, trim: true, lowercase: true },
+    accessToken: { type: String },
+    refreshToken: { type: String },
+    expiresAt: { type: Number },
+    connectedAt: { type: Date },
+  },
+  { _id: false }
+);
+
 const userSchema = new Schema<UserDocument>(
   {
     clerkId: { type: String, required: true, unique: true, index: true },
@@ -79,6 +98,7 @@ const userSchema = new Schema<UserDocument>(
     role: { type: String, enum: ["USER", "ADMIN"], default: "USER" },
     settings: { type: settingsSchema, default: () => ({}) },
     subscription: { type: subscriptionSchema, default: () => ({}) },
+    googleAccount: { type: googleAccountSchema, default: () => ({ connected: false }) },
     lastSweptAt: { type: Date },
     deletedAt: { type: Date },
   },

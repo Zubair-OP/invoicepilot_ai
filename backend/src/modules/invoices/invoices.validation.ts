@@ -14,7 +14,7 @@ const taxComponentSchema = z.object({
 });
 
 export const createInvoiceSchema = z.object({
-  customerId: z.string().min(1, "Customer is required"),
+  customerId: z.string().regex(/^[a-f\d]{24}$/i, "Customer must be a valid ObjectId"),
   items: z.array(invoiceItemSchema).min(1, "At least one item is required"),
   // currency / taxComponents / dueDate are optional here and fall back to the
   // user's settings (Phase 3) when omitted. No .default() — the service needs to

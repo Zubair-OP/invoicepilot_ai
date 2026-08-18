@@ -83,16 +83,16 @@ export default function DashboardLayout({
   const { title, subtitle } = getPageMeta(pathname || "");
 
   return (
-    <div className="min-h-screen flex bg-slate-50">
+    <div className="min-h-screen flex bg-slate-50 print:bg-white print:min-h-0 print:block">
       <Sidebar
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
       />
 
       {/* ── Main content area ──────────────────────────────────────── */}
-      <div className="flex-1 flex flex-col lg:pl-64 min-w-0">
+      <div className="flex-1 flex flex-col lg:pl-64 min-w-0 print:pl-0 print:block">
         {/* ── Top header bar ──────────────────────────────────────── */}
-        <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-slate-200/80 h-16 flex items-center justify-between px-4 sm:px-6 gap-4">
+        <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-slate-200/80 h-16 flex items-center justify-between px-4 sm:px-6 gap-4 print:hidden">
           {/* Left — mobile burger + page title */}
           <div className="flex items-center gap-3 min-w-0">
             <button
@@ -134,7 +134,7 @@ export default function DashboardLayout({
         </header>
 
         {/* ── Page content ──────────────────────────────────────────── */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-auto">
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-auto print:p-0 print:overflow-visible print:block">
           {children}
         </main>
       </div>

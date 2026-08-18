@@ -41,3 +41,92 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: #9ca3af;
 }
+
+@media print {
+  @page {
+    size: auto;
+    margin: 10mm;
+  }
+
+  /* Reset body and html layout */
+  html,
+  body {
+    width: 100% !important;
+    height: auto !important;
+    min-height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    overflow: visible !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Explicitly hide all UI chrome, sidebars, headers, action buttons, notifications */
+  header,
+  nav,
+  aside,
+  footer,
+  .print-hidden,
+  .print\:hidden,
+  .no-print,
+  [aria-label="Notifications"],
+  [role="dialog"],
+  [role="status"] {
+    display: none !important;
+  }
+
+  /* Reset layout wrappers so they don't offset or constrain the invoice */
+  .min-h-screen,
+  .flex-1,
+  .lg\:pl-64,
+  main,
+  .max-w-5xl {
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    position: static !important;
+    overflow: visible !important;
+    box-shadow: none !important;
+    border: none !important;
+    background: transparent !important;
+  }
+
+  /* Invoice Print Root styling */
+  .invoice-print-root {
+    position: static !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    background: #ffffff !important;
+    overflow: visible !important;
+  }
+
+  .invoice-print-document {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 8mm !important;
+    border: 1px solid #e5e7eb !important;
+    border-radius: 8px !important;
+    box-shadow: none !important;
+    background: #ffffff !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  .invoice-print-document table,
+  .invoice-print-document tr,
+  .invoice-print-document td,
+  .invoice-print-document th {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+}

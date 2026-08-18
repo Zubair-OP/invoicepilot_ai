@@ -209,4 +209,35 @@ describe("Stripe billing webhook events", () => {
     expect(vi.mocked(sendEmail)).toHaveBeenCalledTimes(1);
     expect(vi.mocked(sendEmail).mock.calls[0][0].to).toBe("pastdue@example.com");
   });
+
+  it("does not mark another tenant's invoice paid from checkout metadata", async () => {
+    const payer = await User.create({
+      clerkId: `${PREFIX}_payer`,
+      email: "payer@example.com",
+      name: "Payer",
+      subscription: { planKey: "free", status: "active", stripeCustomerId: STRIPE_CUSTOMER },
+    });
+    const victim = await User.create({
+      clerkId: `${PREFIX}_victim`,
+      email: "victim@example.com",
+      name: "Victim",
+    });
+    const invoice = await createInvoice(victim._id, new Date(), 99);
+
+    const status = await subscriptionEvent(
+      "checkout.session.completed",
+      "evt_cross_tenant_invoice_payment",
+      {
+        id: "cs_payment",
+        mode: "payment",
+        customer: STRIPE_CUSTOMER,
+        metadata: { userId: payer._id.toString(), invoiceId: invoice._id.toString() },
+      }
+    );
+
+    expect(status).toBe("handled");
+    const fresh = await Invoice.findById(invoice._id).lean();
+    expect(fresh?.status).toBe("DRAFT");
+    expect(fresh?.paidAt).toBeUndefined();
+  });
 });

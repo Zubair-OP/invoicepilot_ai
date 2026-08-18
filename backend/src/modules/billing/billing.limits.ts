@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import { Invoice, Customer, User, AiUsage } from "../../database/models/index.js";
 import { PaymentRequiredError } from "../../common/errors/index.js";
-import { cacheGetInt, cacheSetInt, cacheIncrement, cacheDelete } from "../../common/cache/redis.js";
+import { cacheGetInt, cacheSetInt, cacheDelete } from "../../common/cache/redis.js";
 import { logger } from "../../observability/logger.js";
 import type { PlanKey, PlanLimitResource } from "../../common/types/index.js";
 import { getPlanByKey, FREE_PLAN } from "./plans.registry.js";
@@ -53,7 +53,7 @@ async function countUsage(resource: PlanLimitResource, userId: string, periodSta
   } else if (resource === "customers") {
     count = await Customer.countDocuments({ userId, createdAt: { $gte: periodStart } });
   } else if (resource === "aiGenerationsPerMonth") {
-    count = await AiUsage.countDocuments({ userId, kind: "generate", createdAt: { $gte: periodStart } });
+    count = await AiUsage.countDocuments({ userId, createdAt: { $gte: periodStart } });
   }
 
   await cacheSetInt(key, count, USAGE_CACHE_TTL_SECONDS);

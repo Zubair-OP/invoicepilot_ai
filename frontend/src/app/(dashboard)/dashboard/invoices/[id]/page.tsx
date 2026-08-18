@@ -124,8 +124,8 @@ export default function InvoiceDetailPage() {
   if (!invoice) return <div className="text-center py-12 text-gray-500">Invoice not found</div>;
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="max-w-5xl mx-auto space-y-6 print:m-0 print:p-0 print:max-w-none print:space-y-0">
+      <div className="flex items-center justify-between print:hidden">
         <div className="flex items-center gap-4">
           <Link href="/dashboard/invoices" className="p-2 rounded-lg hover:bg-gray-100">
             <ArrowLeft className="w-5 h-5" />
@@ -143,7 +143,7 @@ export default function InvoiceDetailPage() {
       </div>
 
       {/* Actions — shown only based on invoice status */}
-      <Card>
+      <Card className="print:hidden">
         <div className="flex flex-wrap gap-2 items-center">
 
           {/* ── DRAFT: send email (marks as SENT), download, delete ── */}
@@ -223,8 +223,8 @@ export default function InvoiceDetailPage() {
 
 
       {/* Invoice Preview (Dynamically styled by selected template) */}
-      <Card className="print:shadow-none print:border-none">
-        <div className={`p-8 rounded-xl border transition-all duration-300 ${
+      <Card className="invoice-print-root print:p-0 print:shadow-none print:border-none print:rounded-none print:bg-transparent">
+        <div className={`invoice-print-document p-8 rounded-xl border transition-all duration-300 ${
           templateId === "modern"
             ? "bg-white border-indigo-100 shadow-sm"
             : templateId === "minimal"

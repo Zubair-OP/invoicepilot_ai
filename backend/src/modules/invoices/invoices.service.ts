@@ -1,4 +1,4 @@
-import { Invoice, User } from "../../database/models/index.js";
+import { Customer, Invoice, User } from "../../database/models/index.js";
 import { NotFoundError, ConflictError } from "../../common/errors/index.js";
 import type { CreateInvoiceInput, UpdateInvoiceInput } from "./invoices.validation.js";
 import type { PaginationParams, ITaxComponent } from "../../common/types/index.js";
@@ -75,6 +75,8 @@ export async function create(userId: string, data: CreateInvoiceInput) {
 
   const totals = computeTotals(items, resolvedTaxComponents, discount);
   const invoiceNumber = await generateInvoiceNumber(userId, settings.invoicePrefix);
+  const customer = await Customer.findOne({ _id: rest.customerId, userId }).select("_id").lean();
+  if (!customer) throw new NotFoundError("Customer");
 
   try {
     const invoice = await Invoice.create({

@@ -38,6 +38,10 @@ const envSchema = z.object({
 
   RESEND_API_KEY: z.string().optional(),
 
+  GOOGLE_CLIENT_ID: z.string().optional(),
+  GOOGLE_CLIENT_SECRET: z.string().optional(),
+  GOOGLE_REDIRECT_URI: z.string().default("http://localhost:3000/api/v1/integrations/google/callback"),
+
   // Nodemailer / SMTP credentials (used instead of Resend when set)
   SMTP_HOST: z.string().default("smtp.gmail.com"),
   SMTP_PORT: z.coerce.number().default(587),

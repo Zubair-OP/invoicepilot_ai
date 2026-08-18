@@ -26,6 +26,7 @@ import { templatesRoutes } from "./modules/templates/index.js";
 import { aiRoutes } from "./modules/ai/index.js";
 import { billingRoutes, seedPlans } from "./modules/billing/index.js";
 import { dashboardRoutes } from "./modules/dashboard/index.js";
+import { googleIntegrationRoutes } from "./modules/integrations/index.js";
 import healthRoutes from "./health/health.routes.js";
 
 const app = express();
@@ -70,6 +71,7 @@ app.use(`${env.API_PREFIX}/templates`, templatesRoutes);
 app.use(`${env.API_PREFIX}/ai`, aiRoutes);
 app.use(`${env.API_PREFIX}/billing`, billingRoutes);
 app.use(`${env.API_PREFIX}/dashboard`, dashboardRoutes);
+app.use(`${env.API_PREFIX}/integrations/google`, googleIntegrationRoutes);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

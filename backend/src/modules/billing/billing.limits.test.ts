@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from "vites
 import mongoose from "mongoose";
 import type { Request, Response, NextFunction } from "express";
 import { env } from "../../config/env.js";
-import { User, Invoice, Customer } from "../../database/models/index.js";
+import { User, Invoice, Customer, AiUsage } from "../../database/models/index.js";
 import { PaymentRequiredError } from "../../common/errors/index.js";
 import { enforcePlanLimit, getUsageSnapshot } from "./billing.limits.js";
 
@@ -68,6 +68,7 @@ describe("plan limit enforcement", () => {
     await User.deleteMany({ clerkId: { $regex: `^${PREFIX}` } });
     await Invoice.deleteMany({ invoiceNumber: { $regex: /^LIM8-/ } });
     await Customer.deleteMany({ name: { $regex: /^Phase8 Customer/ } });
+    await AiUsage.deleteMany({});
     await mongoose.disconnect();
   });
 
@@ -75,6 +76,7 @@ describe("plan limit enforcement", () => {
     await User.deleteMany({ clerkId: { $regex: `^${PREFIX}` } });
     await Invoice.deleteMany({ invoiceNumber: { $regex: /^LIM8-/ } });
     await Customer.deleteMany({ name: { $regex: /^Phase8 Customer/ } });
+    await AiUsage.deleteMany({});
 
     // No Redis cache hits: force every read to recount from Mongo.
     redis.cacheGetInt.mockReset().mockResolvedValue(null);
@@ -149,5 +151,20 @@ describe("plan limit enforcement", () => {
     const error = capture.error();
     expect(error).toBeInstanceOf(PaymentRequiredError);
     expect((error as PaymentRequiredError).details).toMatchObject({ resource: "customers", limit: 10, usage: 10 });
+  });
+
+  it("counts AI chat and generation rows against the same monthly AI limit", async () => {
+    const user = await User.create({ clerkId: `${PREFIX}_ai`, email: "ai@example.com", name: "AI" });
+    for (let i = 0; i < 3; i++) await AiUsage.create({ userId: user._id, kind: "generate" });
+    for (let i = 0; i < 2; i++) await AiUsage.create({ userId: user._id, kind: "chat" });
+
+    const capture = await runMiddleware(enforcePlanLimit("aiGenerationsPerMonth"), user._id.toString());
+    const error = capture.error();
+    expect(error).toBeInstanceOf(PaymentRequiredError);
+    expect((error as PaymentRequiredError).details).toMatchObject({
+      resource: "aiGenerationsPerMonth",
+      limit: 5,
+      usage: 5,
+    });
   });
 });

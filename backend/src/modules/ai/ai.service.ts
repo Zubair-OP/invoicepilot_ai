@@ -1,4 +1,5 @@
 import Groq from "groq-sdk";
+import type { ChatCompletionCreateParamsNonStreaming } from "groq-sdk/resources/chat/completions";
 import { z } from "zod";
 import { env } from "../../config/env.js";
 import { Customer, User, AiUsage } from "../../database/models/index.js";
@@ -62,7 +63,7 @@ async function getCandidateModels(): Promise<string[]> {
 }
 
 async function createCompletionWithFallback(
-  params: Omit<Groq.Chat.Completions.CompletionCreateParamsNonStreaming, "model">,
+  params: Omit<ChatCompletionCreateParamsNonStreaming, "model">,
   options?: { signal?: AbortSignal }
 ) {
   if (!groq) {

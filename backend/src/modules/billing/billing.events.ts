@@ -125,7 +125,23 @@ async function handleInvoicePaymentCheckout(session: StripeCheckoutSessionLike):
   const invoiceId = session.metadata?.invoiceId;
   if (!invoiceId) return;
 
-  await Invoice.findByIdAndUpdate(invoiceId, { status: "PAID", paidAt: new Date() });
+  const user = await findUserForSession(session);
+  if (!user) {
+    logger.warn({ sessionId: session.id, invoiceId }, "Invoice payment checkout references unknown user");
+    return;
+  }
+
+  const updated = await Invoice.findOneAndUpdate(
+    { _id: invoiceId, userId: user._id },
+    { status: "PAID", paidAt: new Date() },
+    { new: true }
+  );
+
+  if (!updated) {
+    logger.warn({ sessionId: session.id, invoiceId, userId: user._id.toString() }, "Invoice payment checkout references unknown invoice");
+    return;
+  }
+
   logger.info({ invoiceId }, "Invoice paid via Stripe checkout");
 }
 

@@ -47,12 +47,14 @@ describe("invoice tenant isolation", () => {
   afterAll(async () => {
     await User.deleteMany({ clerkId: { $regex: `^${PREFIX}` } });
     await Invoice.deleteMany({ invoiceNumber: { $regex: `^${INVOICE_PREFIX}` } });
+    await Customer.deleteMany({ name: { $regex: /^Iso Invoice/ } });
     await mongoose.disconnect();
   });
 
   beforeEach(async () => {
     await User.deleteMany({ clerkId: { $regex: `^${PREFIX}` } });
     await Invoice.deleteMany({ invoiceNumber: { $regex: `^${INVOICE_PREFIX}` } });
+    await Customer.deleteMany({ name: { $regex: /^Iso Invoice/ } });
 
     redisMock.cacheGetInt.mockReset().mockResolvedValue(null);
     redisMock.cacheSetInt.mockReset().mockResolvedValue(undefined);
@@ -100,5 +102,20 @@ describe("invoice tenant isolation", () => {
     const result = await invoicesService.list(otherId, { page: 1, limit: 20 }, { search: "ISOINV" });
     expect(result.data).toHaveLength(0);
     expect(result.meta.total).toBe(0);
+  });
+
+  it("does not let a tenant create an invoice for another tenant's customer", async () => {
+    const otherCustomer = await Customer.create({
+      userId: new mongoose.Types.ObjectId(otherId),
+      name: "Iso Invoice Other Client",
+    });
+
+    await expect(
+      invoicesService.create(ownerId, {
+        customerId: otherCustomer._id.toString(),
+        discount: 0,
+        items: [{ description: "cross tenant", quantity: 1, unitPrice: 100 }],
+      })
+    ).rejects.toBeInstanceOf(NotFoundError);
   });
 });

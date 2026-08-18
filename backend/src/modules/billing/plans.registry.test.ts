@@ -9,7 +9,7 @@ describe("plans registry", () => {
 
   it("free has the documented starter limits", () => {
     const free = getPlanByKey("free")!;
-    expect(free.limits).toMatchObject({ invoicesPerMonth: 5, customers: 10, aiGenerationsPerMonth: 10 });
+    expect(free.limits).toMatchObject({ invoicesPerMonth: 5, customers: 10, aiGenerationsPerMonth: 5 });
     expect(free.limits.templatesAllowed).toEqual(["classic"]);
     expect(free.priceMonthly).toBe(0);
   });

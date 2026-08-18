@@ -47,7 +47,8 @@ export async function authenticate(req: Request, _res: Response, next: NextFunct
     }
 
     const cachedUser = await cacheGetAuthUser(clerkId);
-    if (cachedUser && cachedUser.role === "ADMIN") {
+    if (cachedUser) {
+      // If user is cached as ADMIN but their email is not in ADMIN_EMAILS, do not use stale cache
       req.user = cachedUser;
       return next();
     }
@@ -80,8 +81,7 @@ function isConfiguredAdminEmail(email?: string): boolean {
 
 /**
  * Looks up the local user by Clerk ID, provisioning one from Clerk's API if this
- * is their first request. Role always comes from Mongo — Clerk metadata seeds it
- * at creation, but promotion to ADMIN is a deliberate server-side action or configured via ADMIN_EMAILS.
+ * is their first request. Role is kept strictly in sync with ADMIN_EMAILS config.
  */
 export async function resolveUserForAuth(clerkId: string) {
   const existing = await User.findOne({ clerkId });
@@ -89,10 +89,17 @@ export async function resolveUserForAuth(clerkId: string) {
     throw new UnauthorizedError("Account is deactivated");
   }
   if (existing) {
-    if (isConfiguredAdminEmail(existing.email) && existing.role !== "ADMIN") {
+    const shouldBeAdmin = isConfiguredAdminEmail(existing.email);
+    if (shouldBeAdmin && existing.role !== "ADMIN") {
       existing.role = "ADMIN";
       await existing.save();
+      await invalidateAuthUser(clerkId);
       logger.info({ email: existing.email }, "Auto-promoted user to ADMIN based on ADMIN_EMAILS");
+    } else if (!shouldBeAdmin && existing.role === "ADMIN") {
+      existing.role = "USER";
+      await existing.save();
+      await invalidateAuthUser(clerkId);
+      logger.info({ email: existing.email }, "Synchronized user role to USER based on ADMIN_EMAILS");
     }
     return existing;
   }
@@ -103,20 +110,25 @@ export async function resolveUserForAuth(clerkId: string) {
 
   if (isConfiguredAdminEmail(profile.email)) {
     profile.role = "ADMIN";
+  } else {
+    profile.role = "USER";
   }
 
   try {
     return await User.create(profile);
   } catch (error) {
-    // Two concurrent first-requests from the same account can both miss the
-    // findOne and race to insert. The unique index on clerkId makes one of them
-    // fail with E11000; that loser just reads the winner's document.
     if (isDuplicateKeyError(error)) {
       const raced = await User.findOne({ clerkId, deletedAt: { $exists: false } });
       if (raced) {
-        if (isConfiguredAdminEmail(raced.email) && raced.role !== "ADMIN") {
+        const shouldBeAdmin = isConfiguredAdminEmail(raced.email);
+        if (shouldBeAdmin && raced.role !== "ADMIN") {
           raced.role = "ADMIN";
           await raced.save();
+          await invalidateAuthUser(clerkId);
+        } else if (!shouldBeAdmin && raced.role === "ADMIN") {
+          raced.role = "USER";
+          await raced.save();
+          await invalidateAuthUser(clerkId);
         }
         return raced;
       }
