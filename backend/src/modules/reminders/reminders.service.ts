@@ -6,6 +6,7 @@ import { incrementRateLimit } from "../../common/cache/redis.js";
 import { logger } from "../../observability/logger.js";
 import { queueInvoiceEmail } from "../email/email.service.js";
 import type { IReminderSettings } from "../../common/types/index.js";
+import { env } from "../../config/env.js";
 import {
   DEFAULT_REMINDER_OFFSETS,
   selectDueReminder,
@@ -79,6 +80,9 @@ export async function runReminderSweep(now: Date): Promise<ReminderSweepSummary>
     skippedDisabled: 0,
   };
 
+  let skippedInterval = 0;
+  let skippedAlreadySent = 0;
+
   const settingsCache = new Map<string, IReminderSettings>();
   const emailCache = new Map<string, string | null>();
   // Track which users have been interval-checked and whether they passed.
@@ -104,7 +108,14 @@ export async function runReminderSweep(now: Date): Promise<ReminderSweepSummary>
       intervalAllowed = await isUserDueForSweep(userId, now);
       intervalCache.set(userId, intervalAllowed);
     }
-    if (!intervalAllowed) continue;
+    if (!intervalAllowed) {
+      skippedInterval += 1;
+      logger.debug(
+        { invoiceNumber: invoice.invoiceNumber, userId },
+        "Reminder skipped: user interval not elapsed"
+      );
+      continue;
+    }
 
     const settings = await resolveReminderSettings(userId, settingsCache);
     if (!settings.enabled) {
@@ -112,10 +123,29 @@ export async function runReminderSweep(now: Date): Promise<ReminderSweepSummary>
       continue;
     }
 
-    const offsets = settings.offsets.length ? settings.offsets : DEFAULT_REMINDER_OFFSETS;
+    const offsets =
+      env.NODE_ENV === "development" || !settings.offsets?.length
+        ? DEFAULT_REMINDER_OFFSETS
+        : settings.offsets;
     const alreadySent = new Set((invoice.remindersSent ?? []).map((r) => r.type));
     const due = selectDueReminder(invoice.dueDate, offsets, alreadySent, now);
-    if (!due) continue;
+
+    logger.debug(
+      {
+        invoiceNumber: invoice.invoiceNumber,
+        status: invoice.status,
+        dueDate: invoice.dueDate,
+        offsets,
+        alreadySent: [...alreadySent],
+        dueResult: due,
+      },
+      "Reminder milestone check"
+    );
+
+    if (!due) {
+      skippedAlreadySent += 1;
+      continue;
+    }
 
     const customerId = invoice.customerId.toString();
     const email = await resolveCustomerEmail(userId, customerId, emailCache);
@@ -129,8 +159,14 @@ export async function runReminderSweep(now: Date): Promise<ReminderSweepSummary>
     }
 
     const queued = await recordAndQueueReminder(userId, invoice._id.toString(), due.type, email);
-    if (queued) summary.remindersQueued += 1;
-    processedUserIds.add(userId);
+    if (queued) {
+      summary.remindersQueued += 1;
+      logger.info(
+        { invoiceNumber: invoice.invoiceNumber, milestone: due.type, to: email },
+        "Automated reminder email queued for overdue invoice"
+      );
+      processedUserIds.add(userId);
+    }
   }
 
   // Stamp `lastSweptAt` on every user we actually processed invoices for.
@@ -141,13 +177,13 @@ export async function runReminderSweep(now: Date): Promise<ReminderSweepSummary>
     );
   }
 
-  logger.info({ ...summary }, "Reminder sweep complete");
+  logger.info({ ...summary, skippedInterval, skippedAlreadySent }, "Reminder sweep complete");
   return summary;
 }
 
 /**
  * Checks whether enough time has elapsed since the user's last sweep, based on
- * their configured `intervalMinutes` (default 5). Returns `true` when the user
+ * their configured `intervalMinutes`. Returns `true` when the user
  * should be processed this run.
  */
 async function isUserDueForSweep(userId: string, now: Date): Promise<boolean> {
@@ -155,10 +191,15 @@ async function isUserDueForSweep(userId: string, now: Date): Promise<boolean> {
     .select("settings.reminders.intervalMinutes lastSweptAt")
     .lean();
 
-  const intervalMinutes = user?.settings?.reminders?.intervalMinutes ?? DEFAULT_INTERVAL_MINUTES;
-  const lastSweptAt = user?.lastSweptAt;
+  const intervalMinutes = user?.settings?.reminders?.intervalMinutes;
 
-  // Never swept before — always process.
+  // If no custom interval is configured or in development mode, sweep on every run
+  // (milestone deduplication in selectDueReminder ensures no duplicate emails)
+  if (!intervalMinutes || env.NODE_ENV === "development") {
+    return true;
+  }
+
+  const lastSweptAt = user?.lastSweptAt;
   if (!lastSweptAt) return true;
 
   const elapsedMs = now.getTime() - new Date(lastSweptAt).getTime();

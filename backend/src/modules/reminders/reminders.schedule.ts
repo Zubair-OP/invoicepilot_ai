@@ -3,9 +3,11 @@
 // unit-test and safe to reason about. All date math is done in UTC so a sweep
 // produces the same milestones regardless of server timezone or DST.
 
-// Default schedule: 3 days before due (a friendly heads-up), then 1, 7, and 14
-// days past due. Offsets are whole days relative to `dueDate`; negative = before.
-export const DEFAULT_REMINDER_OFFSETS = [-3, 1, 7, 14];
+// Default schedule: 3 days before due (friendly heads-up), then escalating
+// reminders every 2–3 days post-due so overdue invoices are never in a silent
+// gap longer than 3 days. Final notice at 21 days.
+// Offsets are whole days relative to `dueDate`; negative = before.
+export const DEFAULT_REMINDER_OFFSETS = [-3, 1, 3, 5, 7, 10, 14, 21];
 
 /**
  * Adds a whole number of calendar days to a date in UTC. Using UTC components
