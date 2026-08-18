@@ -45,6 +45,8 @@ const envSchema = z.object({
   SMTP_PASS: z.string().optional(),
   EMAIL_FROM: z.string().optional(),
 
+  ADMIN_EMAILS: z.string().optional(),
+
   MAX_FILE_SIZE_MB: z.coerce.number().default(10),
 
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace"]).default("info"),

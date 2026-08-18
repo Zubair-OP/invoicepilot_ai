@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { usePathname } from "next/navigation";
-import { Menu, Bell, Search } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { Menu, Bell } from "lucide-react";
 import { UserButton } from "@clerk/nextjs";
 import Sidebar from "@/components/layout/Sidebar";
 import Loading from "@/components/ui/Loading";
@@ -36,11 +36,6 @@ function getPageMeta(pathname: string): { title: string; subtitle: string } {
     return { title: "Settings", subtitle: "Configure your account and preferences" };
   if (section === "billing")
     return { title: "Billing & Plans", subtitle: "Manage your subscription and usage" };
-  if (section === "admin") {
-    if (segments[2] === "users")
-      return { title: "User Management", subtitle: "Manage platform users" };
-    return { title: "Admin", subtitle: "Platform administration" };
-  }
 
   const last = segments[segments.length - 1];
   const clean = /^[0-9a-fA-F]{24}$/.test(last)
@@ -55,9 +50,9 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const pathname = usePathname();
+  const router = useRouter();
 
   useEffect(() => {
     async function loadUser() {
@@ -65,7 +60,8 @@ export default function DashboardLayout({
         const { api } = await import("@/lib/api");
         const res = await api.getMe();
         if (res.success && res.data?.role === "ADMIN") {
-          setIsAdmin(true);
+          router.replace("/admin");
+          return;
         }
       } catch {
         // Not logged in or error
@@ -74,7 +70,7 @@ export default function DashboardLayout({
       }
     }
     loadUser();
-  }, []);
+  }, [router]);
 
   if (loading) {
     return (
@@ -91,7 +87,6 @@ export default function DashboardLayout({
       <Sidebar
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
-        isAdmin={isAdmin}
       />
 
       {/* ── Main content area ──────────────────────────────────────── */}
@@ -120,17 +115,8 @@ export default function DashboardLayout({
             </div>
           </div>
 
-          {/* Right — search + bell + avatar */}
+          {/* Right — bell + avatar */}
           <div className="flex items-center gap-2 shrink-0">
-            {/* Search hint — desktop only */}
-            <button className="hidden md:flex items-center gap-2 px-3 py-2 text-sm text-slate-400 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl transition-colors">
-              <Search className="w-4 h-4" />
-              <span className="text-xs">Search...</span>
-              <kbd className="ml-1 px-1.5 py-0.5 text-[10px] font-semibold bg-white border border-slate-200 rounded text-slate-400">
-                ⌘K
-              </kbd>
-            </button>
-
             {/* Notification bell */}
             <button
               className="relative p-2 rounded-xl hover:bg-slate-100 text-slate-500 hover:text-slate-800 transition-colors"

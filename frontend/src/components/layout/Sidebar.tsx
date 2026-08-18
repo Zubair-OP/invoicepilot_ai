@@ -57,18 +57,12 @@ const navigation = [
   },
 ];
 
-const adminNavigation = [
-  { name: "Admin Dashboard", href: "/admin", icon: Shield, exact: true },
-  { name: "User Management", href: "/admin/users", icon: Users, exact: false },
-];
-
 interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
-  isAdmin?: boolean;
 }
 
-export default function Sidebar({ isOpen, onClose, isAdmin }: SidebarProps) {
+export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   const pathname = usePathname();
 
   const isActive = (href: string, exact: boolean) =>
@@ -159,50 +153,6 @@ export default function Sidebar({ isOpen, onClose, isAdmin }: SidebarProps) {
               </Link>
             );
           })}
-
-          {/* Admin section */}
-          {isAdmin && (
-            <>
-              <div className="pt-5 mt-3 border-t border-slate-800">
-                <p className="px-3 text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-3">
-                  Admin
-                </p>
-              </div>
-              {adminNavigation.map((item) => {
-                const active = isActive(item.href, item.exact);
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    onClick={onClose}
-                    className={cn(
-                      "group flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150",
-                      active
-                        ? "bg-emerald-500/15 text-emerald-400"
-                        : "text-slate-400 hover:bg-slate-800 hover:text-slate-100"
-                    )}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div
-                        className={cn(
-                          "w-8 h-8 rounded-lg flex items-center justify-center shrink-0",
-                          active
-                            ? "bg-emerald-500/20 text-emerald-400"
-                            : "bg-slate-800 text-slate-400 group-hover:bg-slate-700"
-                        )}
-                      >
-                        <item.icon className="w-4 h-4" />
-                      </div>
-                      {item.name}
-                    </div>
-                    {active && (
-                      <ChevronRight className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                    )}
-                  </Link>
-                );
-              })}
-            </>
-          )}
         </nav>
 
         {/* ── Sign out footer ───────────────────────────────────────── */}

@@ -47,7 +47,7 @@ export async function authenticate(req: Request, _res: Response, next: NextFunct
     }
 
     const cachedUser = await cacheGetAuthUser(clerkId);
-    if (cachedUser) {
+    if (cachedUser && cachedUser.role === "ADMIN") {
       req.user = cachedUser;
       return next();
     }
@@ -69,21 +69,41 @@ export async function authenticate(req: Request, _res: Response, next: NextFunct
   }
 }
 
+function isConfiguredAdminEmail(email?: string): boolean {
+  if (!email) return false;
+  const adminEmails = (env.ADMIN_EMAILS || "")
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+  return adminEmails.includes(email.trim().toLowerCase());
+}
+
 /**
  * Looks up the local user by Clerk ID, provisioning one from Clerk's API if this
  * is their first request. Role always comes from Mongo — Clerk metadata seeds it
- * at creation, but promotion to ADMIN is a deliberate server-side action.
+ * at creation, but promotion to ADMIN is a deliberate server-side action or configured via ADMIN_EMAILS.
  */
 export async function resolveUserForAuth(clerkId: string) {
   const existing = await User.findOne({ clerkId });
   if (existing?.deletedAt) {
     throw new UnauthorizedError("Account is deactivated");
   }
-  if (existing) return existing;
+  if (existing) {
+    if (isConfiguredAdminEmail(existing.email) && existing.role !== "ADMIN") {
+      existing.role = "ADMIN";
+      await existing.save();
+      logger.info({ email: existing.email }, "Auto-promoted user to ADMIN based on ADMIN_EMAILS");
+    }
+    return existing;
+  }
 
   const profile = await fetchClerkProfile(clerkId);
 
   logger.info({ clerkId, email: profile.email }, "Provisioning new user from Clerk");
+
+  if (isConfiguredAdminEmail(profile.email)) {
+    profile.role = "ADMIN";
+  }
 
   try {
     return await User.create(profile);
@@ -93,7 +113,13 @@ export async function resolveUserForAuth(clerkId: string) {
     // fail with E11000; that loser just reads the winner's document.
     if (isDuplicateKeyError(error)) {
       const raced = await User.findOne({ clerkId, deletedAt: { $exists: false } });
-      if (raced) return raced;
+      if (raced) {
+        if (isConfiguredAdminEmail(raced.email) && raced.role !== "ADMIN") {
+          raced.role = "ADMIN";
+          await raced.save();
+        }
+        return raced;
+      }
     }
     throw error;
   }

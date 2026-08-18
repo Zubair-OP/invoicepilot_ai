@@ -59,114 +59,153 @@ export default function AdminUsersPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold text-gray-900">User Management</h2>
-        <p className="text-sm text-gray-500 mt-1">Manage platform users and roles</p>
-      </div>
-
-      <Card>
-        <div className="flex flex-col sm:flex-row gap-3 mb-4">
+    <div className="space-y-6 animate-fadeIn">
+      <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-sm">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 mb-6">
           <form
-            onSubmit={(e) => { e.preventDefault(); setPage(1); fetchUsers(); }}
+            onSubmit={(e) => {
+              e.preventDefault();
+              setPage(1);
+              fetchUsers();
+            }}
             className="flex-1 flex gap-2"
           >
             <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
               <input
                 type="text"
-                placeholder="Search users..."
+                placeholder="Search users by name or email..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all"
               />
             </div>
-            <Button type="submit" variant="secondary" size="sm">Search</Button>
+            <Button type="submit" variant="secondary" size="md">
+              Search
+            </Button>
           </form>
+
           <select
             value={roleFilter}
-            onChange={(e) => { setRoleFilter(e.target.value); setPage(1); }}
-            className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white"
+            onChange={(e) => {
+              setRoleFilter(e.target.value);
+              setPage(1);
+            }}
+            className="px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm bg-slate-50 font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-purple-500/20"
           >
-            <option value="">All Roles</option>
-            <option value="USER">User</option>
-            <option value="ADMIN">Admin</option>
+            <option value="">All Platform Roles</option>
+            <option value="USER">Standard Users</option>
+            <option value="ADMIN">Super Admins</option>
           </select>
         </div>
 
         {loading ? (
-          <Loading size="lg" text="Loading users..." />
+          <div className="py-16">
+            <Loading size="lg" text="Loading platform accounts..." />
+          </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-gray-100 bg-gray-50">
-                  <th className="text-left py-3 px-4 font-medium text-gray-500">User</th>
-                  <th className="text-left py-3 px-4 font-medium text-gray-500">Role</th>
-                  <th className="text-left py-3 px-4 font-medium text-gray-500 hidden sm:table-cell">Joined</th>
-                  <th className="text-right py-3 px-4 font-medium text-gray-500">Actions</th>
+                <tr className="border-b border-slate-100 bg-slate-50/70 text-slate-500 font-semibold text-xs uppercase tracking-wider">
+                  <th className="text-left py-3.5 px-4 rounded-l-xl">User Profile</th>
+                  <th className="text-left py-3.5 px-4">System Role</th>
+                  <th className="text-left py-3.5 px-4 hidden sm:table-cell">Registration Date</th>
+                  <th className="text-right py-3.5 px-4 rounded-r-xl">Actions</th>
                 </tr>
               </thead>
-              <tbody>
-                {users.map((user) => (
-                  <tr key={user._id} className="border-b border-gray-50 hover:bg-gray-50">
-                    <td className="py-3 px-4">
-                      <div>
-                        <p className="font-medium text-gray-900">{user.name}</p>
-                        <p className="text-xs text-gray-500">{user.email}</p>
-                      </div>
-                    </td>
-                    <td className="py-3 px-4">
-                      <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        user.role === "ADMIN" ? "bg-purple-100 text-purple-700" : "bg-gray-100 text-gray-700"
-                      }`}>
-                        {user.role === "ADMIN" && <Shield className="w-3 h-3" />}
-                        {user.role}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 text-gray-500 hidden sm:table-cell">{formatDate(user.createdAt)}</td>
-                    <td className="py-3 px-4 text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        {user.role === "USER" ? (
-                          <button
-                            onClick={() => handleRoleChange(user._id, "ADMIN")}
-                            className="p-1.5 rounded hover:bg-purple-50 text-purple-600"
-                            title="Promote to Admin"
-                          >
-                            <UserCheck className="w-4 h-4" />
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() => handleRoleChange(user._id, "USER")}
-                            className="p-1.5 rounded hover:bg-orange-50 text-orange-600"
-                            title="Demote to User"
-                          >
-                            <UserX className="w-4 h-4" />
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+              <tbody className="divide-y divide-slate-100">
+                {users.map((user) => {
+                  const initial = (user.name || user.email || "U").charAt(0).toUpperCase();
+                  const isAdmin = user.role === "ADMIN";
+
+                  return (
+                    <tr key={user._id} className="hover:bg-slate-50/70 transition-colors">
+                      <td className="py-3.5 px-4">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-9 h-9 rounded-xl flex items-center justify-center font-bold text-xs shrink-0 ${
+                            isAdmin
+                              ? "bg-purple-100 text-purple-700 border border-purple-200"
+                              : "bg-slate-100 text-slate-700 border border-slate-200"
+                          }`}>
+                            {initial}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-semibold text-slate-900 truncate">{user.name || "Unnamed User"}</p>
+                            <p className="text-xs text-slate-500 truncate">{user.email}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold ${
+                          isAdmin
+                            ? "bg-purple-50 text-purple-700 border border-purple-200"
+                            : "bg-slate-100 text-slate-700 border border-slate-200"
+                        }`}>
+                          {isAdmin && <Shield className="w-3 h-3 text-purple-600" />}
+                          {user.role}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4 text-slate-500 text-xs hidden sm:table-cell font-medium">
+                        {formatDate(user.createdAt)}
+                      </td>
+                      <td className="py-3.5 px-4 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          {user.role === "USER" ? (
+                            <button
+                              onClick={() => handleRoleChange(user._id, "ADMIN")}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 transition-colors"
+                              title="Promote to Admin"
+                            >
+                              <UserCheck className="w-3.5 h-3.5" />
+                              Promote
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => handleRoleChange(user._id, "USER")}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 border border-slate-200 transition-colors"
+                              title="Demote to User"
+                            >
+                              <UserX className="w-3.5 h-3.5" />
+                              Demote
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         )}
 
         {totalPages > 1 && (
-          <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100">
-            <p className="text-sm text-gray-500">Page {page} of {totalPages}</p>
+          <div className="flex items-center justify-between px-4 py-4 border-t border-slate-100 mt-4">
+            <p className="text-xs font-medium text-slate-500">
+              Page {page} of {totalPages}
+            </p>
             <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={() => setPage(Math.max(1, page - 1))} disabled={page === 1}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage(Math.max(1, page - 1))}
+                disabled={page === 1}
+              >
                 Previous
               </Button>
-              <Button variant="outline" size="sm" onClick={() => setPage(Math.min(totalPages, page + 1))} disabled={page === totalPages}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage(Math.min(totalPages, page + 1))}
+                disabled={page === totalPages}
+              >
                 Next
               </Button>
             </div>
           </div>
         )}
-      </Card>
+      </div>
     </div>
   );
 }
