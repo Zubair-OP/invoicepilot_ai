@@ -49,7 +49,7 @@ export default function Sidebar({ isOpen, onClose, isAdmin }: SidebarProps) {
 
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-50 w-64 bg-white border-r border-gray-200 transform transition-transform duration-200 ease-in-out lg:translate-x-0 lg:static lg:z-auto",
+          "fixed inset-y-0 left-0 z-50 w-64 bg-white border-r border-gray-200 transform transition-transform duration-200 ease-in-out lg:translate-x-0 lg:fixed lg:z-auto",
           isOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
