@@ -3,13 +3,21 @@
 import { useEffect, useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { Check, CreditCard, ExternalLink, RefreshCw, Sparkles, LayoutTemplate, ShieldCheck } from "lucide-react";
+import { Check, CreditCard, ExternalLink, RefreshCw, Sparkles, LayoutTemplate, ShieldCheck, Crown, Clock, Bell } from "lucide-react";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Loading from "@/components/ui/Loading";
 import Badge from "@/components/ui/Badge";
 import type { BillingInfo, Plan } from "@/types";
 import { useToast } from "@/context/ToastContext";
+
+function formatLimit(val: number | { limit: number; unlimited: boolean } | undefined): string {
+  if (val === undefined || val === null) return "0";
+  if (typeof val === "number") {
+    return val === -1 ? "Unlimited" : String(val);
+  }
+  return val.unlimited || val.limit === -1 ? "Unlimited" : String(val.limit);
+}
 
 function BillingContent() {
   const router = useRouter();
@@ -157,7 +165,7 @@ function BillingContent() {
                 🎉 Welcome to the {billing.plan.name} Plan!
               </h3>
               <p className="text-sm text-green-100 max-w-xl">
-                Your payment was verified. All {billing.plan.limits.templatesAllowed.length} design templates, higher AI limits, and invoicing capabilities are now unlocked and ready to use.
+                Your payment was verified. All {billing.plan.limits.templatesAllowed.length} design templates, higher AI limits, {billing.plan.limits.customReminderInterval ? "custom email reminder intervals, " : ""}and invoicing capabilities are now unlocked and ready to use.
               </p>
             </div>
             <div className="flex items-center gap-3">
@@ -191,7 +199,7 @@ function BillingContent() {
               )}
             </div>
           </div>
-          <div className="grid sm:grid-cols-3 gap-6">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
             <div>
               <p className="text-sm text-gray-500">Plan</p>
               <p className="text-lg font-bold text-gray-900 flex items-center gap-2">
@@ -220,6 +228,24 @@ function BillingContent() {
                 className="text-xs text-green-600 hover:text-green-700 font-medium inline-flex items-center gap-1 mt-1"
               >
                 Configure Templates &rarr;
+              </Link>
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">Email Automation</p>
+              <div className="mt-1">
+                {billing.plan.limits.customReminderInterval ? (
+                  <span className="inline-flex items-center gap-1 text-sm font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200/80">
+                    <Crown className="w-3.5 h-3.5 text-amber-600 fill-amber-500" /> Custom Frequency
+                  </span>
+                ) : (
+                  <span className="text-sm font-medium text-gray-700">Daily Sweeps (24h)</span>
+                )}
+              </div>
+              <Link
+                href="/dashboard/settings"
+                className="text-xs text-green-600 hover:text-green-700 font-medium inline-flex items-center gap-1 mt-1"
+              >
+                Configure Automation &rarr;
               </Link>
             </div>
           </div>
@@ -305,22 +331,37 @@ function BillingContent() {
                     <span className="text-sm font-normal text-gray-500">/mo</span>
                   </p>
                   <p className="text-sm text-gray-500 mt-2 mb-4">{plan.description}</p>
-                  <ul className="space-y-2 mb-6">
+                  <ul className="space-y-2.5 mb-6">
                     <li className="flex items-center gap-2 text-sm text-gray-700">
                       <Check className="w-4 h-4 text-green-600 shrink-0" />
-                      {plan.limits.invoicesPerMonth.unlimited ? "Unlimited" : plan.limits.invoicesPerMonth.limit} invoices/month
+                      <span><strong>{formatLimit(plan.limits.invoicesPerMonth)}</strong> invoices/month</span>
                     </li>
                     <li className="flex items-center gap-2 text-sm text-gray-700">
                       <Check className="w-4 h-4 text-green-600 shrink-0" />
-                      {plan.limits.customers.unlimited ? "Unlimited" : plan.limits.customers.limit} customers
+                      <span><strong>{formatLimit(plan.limits.customers)}</strong> customers</span>
                     </li>
                     <li className="flex items-center gap-2 text-sm text-gray-700">
                       <Check className="w-4 h-4 text-green-600 shrink-0" />
-                      {plan.limits.aiGenerationsPerMonth.unlimited ? "Unlimited" : plan.limits.aiGenerationsPerMonth.limit} AI generations
+                      <span><strong>{formatLimit(plan.limits.aiGenerationsPerMonth)}</strong> AI generations</span>
                     </li>
                     <li className="flex items-center gap-2 text-sm text-gray-700">
                       <Check className="w-4 h-4 text-green-600 shrink-0" />
-                      <span className="font-semibold text-gray-900">{plan.limits.templatesAllowed.length} Templates</span> ({plan.limits.templatesAllowed.join(", ")})
+                      <span><strong className="text-gray-900">{plan.limits.templatesAllowed.length} {plan.limits.templatesAllowed.length === 1 ? "Template" : "Templates"}</strong> ({plan.limits.templatesAllowed.join(", ")})</span>
+                    </li>
+                    <li className="flex items-center gap-2 text-sm text-gray-700">
+                      {plan.limits.customReminderInterval ? (
+                        <>
+                          <Crown className="w-4 h-4 text-amber-500 fill-amber-500 shrink-0" />
+                          <span className="text-amber-900 font-semibold bg-amber-50/80 px-1.5 py-0.5 rounded border border-amber-200/60">
+                            Custom Reminder Cadence (1h–12h)
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <Check className="w-4 h-4 text-gray-400 shrink-0" />
+                          <span className="text-gray-500">Standard Reminders (Daily 24h)</span>
+                        </>
+                      )}
                     </li>
                   </ul>
                 </div>
@@ -329,7 +370,7 @@ function BillingContent() {
                   {!isCurrent && plan.checkoutEnabled && (
                     <Button
                       className="w-full"
-                      variant={plan.key === "pro" ? "primary" : "outline"}
+                      variant={plan.key === "pro" ? "primary" : plan.key === "premium" ? "primary" : "outline"}
                       onClick={() => handleCheckout(plan.key)}
                       disabled={checkoutLoading === plan.key}
                     >

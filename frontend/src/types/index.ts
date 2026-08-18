@@ -94,18 +94,21 @@ export interface UserSettings {
   };
 }
 
+export interface PlanLimits {
+  invoicesPerMonth: number | { limit: number; unlimited: boolean };
+  customers: number | { limit: number; unlimited: boolean };
+  aiGenerationsPerMonth: number | { limit: number; unlimited: boolean };
+  templatesAllowed: string[];
+  customReminderInterval: boolean;
+}
+
 export interface Plan {
   key: string;
   name: string;
   description: string;
   priceMonthly: number;
   checkoutEnabled: boolean;
-  limits: {
-    invoicesPerMonth: { limit: number; unlimited: boolean };
-    customers: { limit: number; unlimited: boolean };
-    aiGenerationsPerMonth: { limit: number; unlimited: boolean };
-    templatesAllowed: string[];
-  };
+  limits: PlanLimits;
 }
 
 export interface Subscription {
