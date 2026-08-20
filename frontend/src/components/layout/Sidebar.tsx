@@ -10,9 +10,7 @@ import {
   CreditCard,
   LogOut,
   X,
-  Shield,
   ChevronRight,
-  Zap,
   LayoutTemplate,
 } from "lucide-react";
 import { SignOutButton } from "@clerk/nextjs";

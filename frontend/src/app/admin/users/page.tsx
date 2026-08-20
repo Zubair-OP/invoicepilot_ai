@@ -2,11 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { Search, Shield, UserCheck, UserX, Loader2 } from "lucide-react";
-import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import ErrorState from "@/components/ui/ErrorState";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { formatDate } from "@/lib/utils";
+import { getErrorMessage } from "@/lib/api";
 import type { User } from "@/types";
 
 import { useToast } from "@/context/ToastContext";
@@ -59,7 +59,8 @@ export default function AdminUsersPage() {
   };
 
   useEffect(() => {
-    fetchUsers();
+    const t = setTimeout(fetchUsers, 0);
+    return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, roleFilter]);
 
@@ -77,8 +78,8 @@ export default function AdminUsersPage() {
       await api.adminChangeRole(userId, newRole);
       setUsers(users.map((u) => (u._id === userId ? { ...u, role: newRole as "USER" | "ADMIN" } : u)));
       toast.success(`Role updated to ${newRole}`);
-    } catch (err: any) {
-      toast.error(err.message || "Failed to change role");
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Failed to change role"));
     } finally {
       setBusyId(null);
     }

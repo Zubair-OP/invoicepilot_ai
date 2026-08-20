@@ -1,5 +1,69 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api/v1";
 
+import type {
+  AdminAnalytics,
+  BillingInfo,
+  Customer,
+  DashboardData,
+  Invoice,
+  Plan,
+  User,
+  UserSettings,
+} from "@/types";
+
+/**
+ * Backend envelope. `data` is present on success; `message` carries the
+ * human-readable description for both success and failure responses.
+ */
+interface ApiEnvelope<T> {
+  success: boolean;
+  message: string;
+  data: T;
+  code?: string;
+  errors?: Record<string, string[]>;
+}
+
+/** Envelope returned by paginated list endpoints. */
+interface PaginatedEnvelope<T> {
+  success: boolean;
+  message: string;
+  data: T[];
+  meta: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+    hasNext: boolean;
+    hasPrev: boolean;
+  };
+}
+
+/** Draft invoice shape returned by the AI generator. */
+interface InvoiceDraft {
+  customerId?: string;
+  items?: { description: string; quantity: number; unitPrice: number }[];
+  currency?: string;
+  taxComponents?: { name: string; rate: number }[];
+  discount?: number;
+  notes?: string;
+  dueDate?: string;
+}
+
+/**
+ * Resolve an unknown thrown value into a user-safe message. Falls back to the
+ * caller-provided message, then to the generic friendly copy.
+ */
+export function getErrorMessage(err: unknown, fallback?: string): string {
+  if (err instanceof Error && err.message) return err.message;
+  return fallback || ERROR_MESSAGES.generic;
+}
+
+/** Best-effort HTTP status for thrown errors (used to distinguish 404s). */
+export function getErrorStatus(err: unknown): number | undefined {
+  if (err instanceof ApiError) return err.status;
+  return undefined;
+}
+
 /**
  * User-friendly messages for common failure modes. We deliberately avoid
  * exposing infrastructure details (host names, cold starts, etc.).
@@ -26,12 +90,18 @@ export class ApiError extends Error {
   }
 }
 
-async function waitForClerkSession(timeoutMs = 4000): Promise<any> {
+interface ClerkSessionLike {
+  getToken: () => Promise<string | null>;
+}
+
+async function waitForClerkSession(timeoutMs = 4000): Promise<ClerkSessionLike | null> {
   if (typeof window === "undefined") return null;
 
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
-    const win = window as unknown as { Clerk?: any };
+    const win = window as unknown as {
+      Clerk?: { session?: ClerkSessionLike; loaded?: boolean };
+    };
     if (win.Clerk?.session) {
       return win.Clerk.session;
     }
@@ -42,7 +112,9 @@ async function waitForClerkSession(timeoutMs = 4000): Promise<any> {
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
 
-  const win = window as unknown as { Clerk?: any };
+  const win = window as unknown as {
+    Clerk?: { session?: ClerkSessionLike; loaded?: boolean };
+  };
   return win.Clerk?.session || null;
 }
 
@@ -173,32 +245,32 @@ function abortAny(signals: AbortSignal[]): AbortSignal {
 
 export const api = {
   // Users
-  getMe: () => fetchApi<any>("/users/me"),
-  updateMe: (data: any) => fetchApi<any>("/users/me", { method: "PATCH", body: JSON.stringify(data) }),
+  getMe: () => fetchApi<ApiEnvelope<User>>("/users/me"),
+  updateMe: (data: Record<string, unknown>) => fetchApi<ApiEnvelope<User>>("/users/me", { method: "PATCH", body: JSON.stringify(data) }),
 
   // Customers
   getCustomers: (params?: Record<string, string>) => {
     const query = params ? `?${new URLSearchParams(params).toString()}` : "";
-    return fetchApi<any>(`/customers${query}`);
+    return fetchApi<PaginatedEnvelope<Customer>>(`/customers${query}`);
   },
-  getCustomer: (id: string) => fetchApi<any>(`/customers/${id}`),
-  createCustomer: (data: any) => fetchApi<any>("/customers", { method: "POST", body: JSON.stringify(data) }),
-  updateCustomer: (id: string, data: any) => fetchApi<any>(`/customers/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
-  deleteCustomer: (id: string) => fetchApi<any>(`/customers/${id}`, { method: "DELETE" }),
+  getCustomer: (id: string) => fetchApi<ApiEnvelope<Customer>>(`/customers/${id}`),
+  createCustomer: (data: Record<string, unknown>) => fetchApi<ApiEnvelope<Customer>>("/customers", { method: "POST", body: JSON.stringify(data) }),
+  updateCustomer: (id: string, data: Record<string, unknown>) => fetchApi<ApiEnvelope<Customer>>(`/customers/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+  deleteCustomer: (id: string) => fetchApi<ApiEnvelope<{ message: string }>>(`/customers/${id}`, { method: "DELETE" }),
 
   // Invoices
   getInvoices: (params?: Record<string, string>) => {
     const query = params ? `?${new URLSearchParams(params).toString()}` : "";
-    return fetchApi<any>(`/invoices${query}`);
+    return fetchApi<PaginatedEnvelope<Invoice>>(`/invoices${query}`);
   },
-  getInvoice: (id: string) => fetchApi<any>(`/invoices/${id}`),
-  createInvoice: (data: any) => fetchApi<any>("/invoices", { method: "POST", body: JSON.stringify(data) }),
-  updateInvoice: (id: string, data: any) => fetchApi<any>(`/invoices/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
-  deleteInvoice: (id: string) => fetchApi<any>(`/invoices/${id}`, { method: "DELETE" }),
-  sendInvoice: (id: string) => fetchApi<any>(`/invoices/${id}/send`, { method: "PATCH" }),
-  payInvoice: (id: string) => fetchApi<any>(`/invoices/${id}/pay`, { method: "PATCH" }),
-  voidInvoice: (id: string) => fetchApi<any>(`/invoices/${id}/void`, { method: "PATCH" }),
-  unvoidInvoice: (id: string) => fetchApi<any>(`/invoices/${id}/unvoid`, { method: "PATCH" }),
+  getInvoice: (id: string) => fetchApi<ApiEnvelope<Invoice>>(`/invoices/${id}`),
+  createInvoice: (data: Record<string, unknown>) => fetchApi<ApiEnvelope<Invoice>>("/invoices", { method: "POST", body: JSON.stringify(data) }),
+  updateInvoice: (id: string, data: Record<string, unknown>) => fetchApi<ApiEnvelope<Invoice>>(`/invoices/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+  deleteInvoice: (id: string) => fetchApi<ApiEnvelope<{ message: string }>>(`/invoices/${id}`, { method: "DELETE" }),
+  sendInvoice: (id: string) => fetchApi<ApiEnvelope<Invoice>>(`/invoices/${id}/send`, { method: "PATCH" }),
+  payInvoice: (id: string) => fetchApi<ApiEnvelope<Invoice>>(`/invoices/${id}/pay`, { method: "PATCH" }),
+  voidInvoice: (id: string) => fetchApi<ApiEnvelope<Invoice>>(`/invoices/${id}/void`, { method: "PATCH" }),
+  unvoidInvoice: (id: string) => fetchApi<ApiEnvelope<Invoice>>(`/invoices/${id}/unvoid`, { method: "PATCH" }),
   getInvoicePdf: (id: string) => `${API_BASE}/invoices/${id}/pdf`,
   getInvoicePreview: (id: string) => `${API_BASE}/invoices/${id}/preview`,
   downloadInvoicePdf: async (id: string, invoiceNumber?: string): Promise<void> => {
@@ -236,47 +308,47 @@ export const api = {
     window.URL.revokeObjectURL(url);
     document.body.removeChild(link);
   },
-  sendInvoiceEmail: (id: string, data?: any) => fetchApi<any>(`/invoices/${id}/send-email`, { method: "POST", body: JSON.stringify(data || {}) }),
-  remindInvoice: (id: string) => fetchApi<any>(`/invoices/${id}/remind`, { method: "POST" }),
+  sendInvoiceEmail: (id: string, data?: Record<string, unknown>) => fetchApi<ApiEnvelope<Invoice>>(`/invoices/${id}/send-email`, { method: "POST", body: JSON.stringify(data || {}) }),
+  remindInvoice: (id: string) => fetchApi<ApiEnvelope<Invoice>>(`/invoices/${id}/remind`, { method: "POST" }),
 
   // AI
-  generateInvoice: (prompt: string) => fetchApi<any>("/ai/generate-invoice", { method: "POST", body: JSON.stringify({ prompt }) }),
-  aiChat: (messages: { role: string; content: string }[]) => fetchApi<any>("/ai/chat", { method: "POST", body: JSON.stringify({ messages }) }),
+  generateInvoice: (prompt: string) => fetchApi<ApiEnvelope<InvoiceDraft>>("/ai/generate-invoice", { method: "POST", body: JSON.stringify({ prompt }) }),
+  aiChat: (messages: { role: string; content: string }[]) => fetchApi<ApiEnvelope<{ reply: string }>>("/ai/chat", { method: "POST", body: JSON.stringify({ messages }) }),
 
   // Templates
-  getTemplates: () => fetchApi<any>("/templates"),
+  getTemplates: () => fetchApi<ApiEnvelope<{ id: string; name: string }[]>>("/templates"),
 
   // Settings
-  getSettings: () => fetchApi<any>("/settings"),
-  updateSettings: (data: any) => fetchApi<any>("/settings", { method: "PATCH", body: JSON.stringify(data) }),
+  getSettings: () => fetchApi<ApiEnvelope<UserSettings>>("/settings"),
+  updateSettings: (data: Record<string, unknown>) => fetchApi<ApiEnvelope<UserSettings>>("/settings", { method: "PATCH", body: JSON.stringify(data) }),
 
   // Billing
-  getPlans: () => fetchApi<any>("/billing/plans"),
+  getPlans: () => fetchApi<ApiEnvelope<Plan[]>>("/billing/plans"),
   getSubscription: (params?: { session_id?: string }) => {
     const query = params?.session_id ? `?session_id=${encodeURIComponent(params.session_id)}` : "";
-    return fetchApi<any>(`/billing/subscription${query}`);
+    return fetchApi<ApiEnvelope<BillingInfo>>(`/billing/subscription${query}`);
   },
   syncSubscription: (sessionId?: string) =>
-    fetchApi<any>("/billing/sync", { method: "POST", body: JSON.stringify({ sessionId }) }),
-  createCheckout: (planKey: string) => fetchApi<any>("/billing/checkout", { method: "POST", body: JSON.stringify({ planKey }) }),
-  openPortal: () => fetchApi<any>("/billing/portal", { method: "POST" }),
+    fetchApi<ApiEnvelope<BillingInfo>>("/billing/sync", { method: "POST", body: JSON.stringify({ sessionId }) }),
+  createCheckout: (planKey: string) => fetchApi<ApiEnvelope<{ url: string }>>("/billing/checkout", { method: "POST", body: JSON.stringify({ planKey }) }),
+  openPortal: () => fetchApi<ApiEnvelope<{ url: string }>>("/billing/portal", { method: "POST" }),
 
   // Dashboard
   getDashboard: (params?: Record<string, string>) => {
     const query = params ? `?${new URLSearchParams(params).toString()}` : "";
-    return fetchApi<any>(`/dashboard${query}`);
+    return fetchApi<ApiEnvelope<DashboardData>>(`/dashboard${query}`);
   },
 
   // Admin
   adminGetUsers: (params?: Record<string, string>) => {
     const query = params ? `?${new URLSearchParams(params).toString()}` : "";
-    return fetchApi<any>(`/admin/users${query}`);
+    return fetchApi<PaginatedEnvelope<User>>(`/admin/users${query}`);
   },
-  adminGetUser: (id: string) => fetchApi<any>(`/admin/users/${id}`),
-  adminChangeRole: (id: string, role: string) => fetchApi<any>(`/admin/users/${id}/role`, { method: "PATCH", body: JSON.stringify({ role }) }),
+  adminGetUser: (id: string) => fetchApi<ApiEnvelope<User>>(`/admin/users/${id}`),
+  adminChangeRole: (id: string, role: string) => fetchApi<ApiEnvelope<User>>(`/admin/users/${id}/role`, { method: "PATCH", body: JSON.stringify({ role }) }),
   adminGetAnalytics: (params?: Record<string, string>) => {
     const query = params ? `?${new URLSearchParams(params).toString()}` : "";
-    return fetchApi<any>(`/admin/analytics${query}`);
+    return fetchApi<ApiEnvelope<AdminAnalytics>>(`/admin/analytics${query}`);
   },
 };
 

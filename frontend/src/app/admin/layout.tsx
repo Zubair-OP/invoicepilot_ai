@@ -11,7 +11,6 @@ import {
   X,
   Menu,
   ChevronRight,
-  Zap,
 } from "lucide-react";
 import { SignOutButton, UserButton } from "@clerk/nextjs";
 import { cn } from "@/lib/utils";

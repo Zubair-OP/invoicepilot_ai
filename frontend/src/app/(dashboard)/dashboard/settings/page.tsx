@@ -10,6 +10,7 @@ import Textarea from "@/components/ui/Textarea";
 import ErrorState from "@/components/ui/ErrorState";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useToast } from "@/context/ToastContext";
+import { getErrorMessage } from "@/lib/api";
 import type { UserSettings } from "@/types";
 
 export default function SettingsPage() {
@@ -60,8 +61,8 @@ export default function SettingsPage() {
       }
       await api.updateSettings(payload);
       toast.success("Business settings saved successfully!");
-    } catch (err: any) {
-      toast.error(err.message || "Failed to save settings");
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Failed to save settings"));
     } finally {
       setSaving(false);
     }

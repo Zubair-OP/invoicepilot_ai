@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import {
   Users,
@@ -12,7 +12,7 @@ import {
   Sparkles,
   ExternalLink,
 } from "lucide-react";
-import Loading from "@/components/ui/Loading";
+import AdminLoading from "./loading";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import type { AdminAnalytics, User as UserModel } from "@/types";
 
@@ -57,63 +57,19 @@ export default function AdminDashboardPage() {
   }, []);
 
   useEffect(() => {
-    loadData(rangeDays);
+    const t = setTimeout(() => loadData(rangeDays), 0);
+    return () => clearTimeout(t);
   }, [rangeDays, loadData]);
 
-  // Live Signups Data Points from backend
-  const signupsData = useMemo(() => {
-    if (!data?.signupsOverTime || data.signupsOverTime.length === 0) return [];
-    return data.signupsOverTime.map((d) => ({
-      date: d.date,
-      count: d.count,
-      label: d.date.slice(5), // MM-DD
-    }));
-  }, [data?.signupsOverTime]);
-
-  // Live AI Usage Data Points from backend
-  const aiData = useMemo(() => {
-    if (!data?.aiUsageOverTime || data.aiUsageOverTime.length === 0) return [];
-    return data.aiUsageOverTime.map((d) => ({
-      date: d.date,
-      count: d.count,
-      label: d.date.slice(5), // MM-DD
-    }));
-  }, [data?.aiUsageOverTime]);
-
-  // Donut chart calculations for active subscriptions
-  const planColorMap: Record<string, { bg: string; text: string; hex: string }> = {
-    starter: { bg: "bg-emerald-500", text: "text-emerald-600", hex: "#10b981" },
-    pro: { bg: "bg-blue-600", text: "text-blue-600", hex: "#2563eb" },
-    enterprise: { bg: "bg-purple-600", text: "text-purple-600", hex: "#9333ea" },
-  };
-
-  const subscriptionPlans = useMemo(() => {
-    if (!data?.activeSubscriptionsByPlan) return [];
-    const total = data.activeSubscriptionsByPlan.reduce((acc, p) => acc + p.count, 0);
-    return data.activeSubscriptionsByPlan.map((plan) => ({
-      ...plan,
-      percentage: total > 0 ? Math.round((plan.count / total) * 100) : 0,
-      color: planColorMap[plan.planKey.toLowerCase()] || {
-        bg: "bg-slate-400",
-        text: "text-slate-600",
-        hex: "#94a3b8",
-      },
-    }));
-  }, [data?.activeSubscriptionsByPlan]);
-
-  const totalActiveSubscribers = useMemo(() => {
-    return (data?.activeSubscriptionsByPlan || []).reduce((acc, p) => acc + p.count, 0);
-  }, [data?.activeSubscriptionsByPlan]);
-
   if (loading) {
-    return <Loading size="lg" text="Loading live platform analytics..." />;
+    return <AdminLoading />;
   }
 
   if (!data) {
     return (
       <div className="bg-white rounded-2xl p-12 text-center border border-slate-200 shadow-sm max-w-lg mx-auto my-12">
         <ShieldCheck className="w-12 h-12 text-slate-400 mx-auto mb-3" />
-        <h3 className="text-base font-bold text-slate-900 mb-1">Couldn't load platform analytics</h3>
+        <h3 className="text-base font-bold text-slate-900 mb-1">Couldn&apos;t load platform analytics</h3>
         <p className="text-xs text-slate-500 mb-4">
           We ran into a problem connecting to the platform data. Please try again.
         </p>
@@ -127,6 +83,52 @@ export default function AdminDashboardPage() {
       </div>
     );
   }
+
+  // Live Signups Data Points from backend
+  const signupsData = (() => {
+    if (!data.signupsOverTime || data.signupsOverTime.length === 0) return [];
+    return data.signupsOverTime.map((d) => ({
+      date: d.date,
+      count: d.count,
+      label: d.date.slice(5), // MM-DD
+    }));
+  })();
+
+  // Live AI Usage Data Points from backend
+  const aiData = (() => {
+    if (!data.aiUsageOverTime || data.aiUsageOverTime.length === 0) return [];
+    return data.aiUsageOverTime.map((d) => ({
+      date: d.date,
+      count: d.count,
+      label: d.date.slice(5), // MM-DD
+    }));
+  })();
+
+  // Donut chart calculations for active subscriptions
+  const planColorMap: Record<string, { bg: string; text: string; hex: string }> = {
+    starter: { bg: "bg-emerald-500", text: "text-emerald-600", hex: "#10b981" },
+    pro: { bg: "bg-blue-600", text: "text-blue-600", hex: "#2563eb" },
+    enterprise: { bg: "bg-purple-600", text: "text-purple-600", hex: "#9333ea" },
+  };
+
+  const subscriptionPlans = (() => {
+    if (!data.activeSubscriptionsByPlan) return [];
+    const total = data.activeSubscriptionsByPlan.reduce((acc, p) => acc + p.count, 0);
+    return data.activeSubscriptionsByPlan.map((plan) => ({
+      ...plan,
+      percentage: total > 0 ? Math.round((plan.count / total) * 100) : 0,
+      color: planColorMap[plan.planKey.toLowerCase()] || {
+        bg: "bg-slate-400",
+        text: "text-slate-600",
+        hex: "#94a3b8",
+      },
+    }));
+  })();
+
+  const totalActiveSubscribers = (data.activeSubscriptionsByPlan || []).reduce(
+    (acc, p) => acc + p.count,
+    0
+  );
 
   // Helper for generating dynamic SVG line paths
   const svgWidth = 600;

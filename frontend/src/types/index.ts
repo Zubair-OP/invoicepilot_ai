@@ -29,6 +29,7 @@ export interface InvoiceItem {
   quantity: number;
   unitPrice: number;
   amount: number;
+  total?: number;
 }
 
 export interface TaxComponent {
@@ -42,7 +43,7 @@ export type InvoiceStatus = "DRAFT" | "SENT" | "PAID" | "OVERDUE" | "CANCELLED";
 export interface Invoice {
   _id: string;
   userId: string;
-  customerId: string;
+  customerId: string | Customer;
   customer?: Customer;
   invoiceNumber: string;
   status: InvoiceStatus;
@@ -138,7 +139,7 @@ export interface DashboardData {
     paid: { currency: string; amount: number; count: number }[];
     overdue: { count: number; totals: { currency: string; amount: number; count: number }[] };
   };
-  invoicesByStatus: { status: string; count: number; totals: { currency: string; amount: number; count: number }[] }[];
+  invoicesByStatus: { _id?: string; status: string; count: number; totals: { currency: string; amount: number; count: number }[] }[];
   recentInvoices: {
     id: string;
     invoiceNumber: string;

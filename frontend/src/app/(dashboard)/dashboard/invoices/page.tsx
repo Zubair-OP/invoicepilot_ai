@@ -9,6 +9,7 @@ import ErrorState from "@/components/ui/ErrorState";
 import EmptyState from "@/components/ui/EmptyState";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { formatCurrency, formatDate, getStatusColor } from "@/lib/utils";
+import { getErrorMessage } from "@/lib/api";
 import type { Invoice } from "@/types";
 
 import { useToast } from "@/context/ToastContext";
@@ -63,7 +64,8 @@ export default function InvoicesPage() {
   };
 
   useEffect(() => {
-    fetchInvoices();
+    const t = setTimeout(fetchInvoices, 0);
+    return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, statusFilter]);
 
@@ -87,8 +89,8 @@ export default function InvoicesPage() {
       await api.deleteInvoice(id);
       setInvoices((prev) => prev.filter((inv) => inv._id !== id));
       toast.success("Draft invoice deleted.");
-    } catch (err: any) {
-      toast.error(err.message || "Failed to delete invoice");
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Failed to delete invoice"));
     } finally {
       setActionId(null);
     }
@@ -101,8 +103,8 @@ export default function InvoicesPage() {
       toast.info("Preparing your PDF, this usually takes a few seconds...", "Downloading");
       await api.downloadInvoicePdf(id, invoiceNumber);
       toast.success("PDF downloaded successfully!");
-    } catch (err: any) {
-      toast.error(err.message || "Failed to download PDF");
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Failed to download PDF"));
     } finally {
       setActionId(null);
     }
@@ -208,7 +210,7 @@ export default function InvoicesPage() {
                         </Link>
                       </td>
                       <td className="py-3 px-4 text-gray-600">
-                        {((typeof inv.customerId === "object" && inv.customerId !== null ? (inv.customerId as any).name : inv.customer?.name) || "—")}
+                        {((typeof inv.customerId === "object" && inv.customerId !== null ? inv.customerId.name : inv.customer?.name) || "—")}
                       </td>
                       <td className="py-3 px-4 text-gray-500 hidden sm:table-cell">{formatDate(inv.issuedAt)}</td>
                       <td className="py-3 px-4">

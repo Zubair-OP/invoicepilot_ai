@@ -9,6 +9,7 @@ import ErrorState from "@/components/ui/ErrorState";
 import EmptyState from "@/components/ui/EmptyState";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { formatDate } from "@/lib/utils";
+import { getErrorMessage } from "@/lib/api";
 import type { Customer } from "@/types";
 
 import { useToast } from "@/context/ToastContext";
@@ -60,7 +61,8 @@ export default function CustomersPage() {
   };
 
   useEffect(() => {
-    fetchCustomers();
+    const t = setTimeout(fetchCustomers, 0);
+    return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page]);
 
@@ -84,8 +86,8 @@ export default function CustomersPage() {
       await api.deleteCustomer(id);
       setCustomers((prev) => prev.filter((c) => c._id !== id));
       toast.success("Customer deleted successfully.");
-    } catch (err: any) {
-      toast.error(err.message || "Failed to delete customer");
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Failed to delete customer"));
     } finally {
       setDeletingId(null);
     }

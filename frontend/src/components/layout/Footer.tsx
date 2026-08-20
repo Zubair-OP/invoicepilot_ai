@@ -3,8 +3,6 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  FileText,
-  Sparkles,
   Shield,
   CheckCircle2,
 } from "lucide-react";
@@ -59,40 +57,40 @@ export default function Footer() {
             </h3>
             <ul className="space-y-2.5">
               <li>
-                <a
+                <Link
                   href="/#features"
                   onClick={(e) => handleNavClick(e, "features")}
                   className="text-sm text-slate-500 hover:text-emerald-600 transition-colors"
                 >
                   Features
-                </a>
+                </Link>
               </li>
               <li>
-                <a
+                <Link
                   href="/#how-it-works"
                   onClick={(e) => handleNavClick(e, "how-it-works")}
                   className="text-sm text-slate-500 hover:text-emerald-600 transition-colors"
                 >
                   How It Works
-                </a>
+                </Link>
               </li>
               <li>
-                <a
+                <Link
                   href="/#pricing"
                   onClick={(e) => handleNavClick(e, "pricing")}
                   className="text-sm text-slate-500 hover:text-emerald-600 transition-colors"
                 >
                   Pricing
-                </a>
+                </Link>
               </li>
               <li>
-                <a
+                <Link
                   href="/#faq"
                   onClick={(e) => handleNavClick(e, "faq")}
                   className="text-sm text-slate-500 hover:text-emerald-600 transition-colors"
                 >
                   FAQ
-                </a>
+                </Link>
               </li>
             </ul>
           </nav>

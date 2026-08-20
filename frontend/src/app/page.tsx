@@ -7,7 +7,6 @@ import {
   FileText,
   Zap,
   Shield,
-  Clock,
   Users,
   BarChart3,
   Send,
@@ -20,12 +19,7 @@ import {
   DollarSign,
   Layers,
   Globe,
-  Sliders,
-  Receipt,
   Cpu,
-  RefreshCw,
-  Mail,
-  FileSpreadsheet,
   Quote,
 } from "lucide-react";
 import Navbar from "@/components/layout/Navbar";
@@ -747,7 +741,7 @@ export default function LandingPage() {
                 Who Uses InvoicePilot?
               </h2>
               <p className="text-base sm:text-lg text-slate-600 leading-relaxed">
-                Whether you're a solo freelancer, a growing agency, or a
+                Whether you&apos;re a solo freelancer, a growing agency, or a
                 GST-registered business — InvoicePilot saves you hours every
                 week.
               </p>

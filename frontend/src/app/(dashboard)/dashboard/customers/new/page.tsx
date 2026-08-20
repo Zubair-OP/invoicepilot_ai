@@ -10,6 +10,7 @@ import Input from "@/components/ui/Input";
 import Textarea from "@/components/ui/Textarea";
 
 import { useToast } from "@/context/ToastContext";
+import { getErrorMessage } from "@/lib/api";
 
 export default function NewCustomerPage() {
   const router = useRouter();
@@ -37,8 +38,8 @@ export default function NewCustomerPage() {
         toast.success(`Customer "${form.name}" created successfully!`);
         router.push("/dashboard/customers");
       }
-    } catch (err: any) {
-      toast.error(err.message || "Failed to create customer");
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Failed to create customer"));
     } finally {
       setSaving(false);
     }
@@ -102,9 +103,9 @@ export default function NewCustomerPage() {
           <Link href="/dashboard/customers">
             <Button variant="outline">Cancel</Button>
           </Link>
-          <Button onClick={handleSave} disabled={saving}>
-            <Save className="w-4 h-4 mr-2" />
-            {saving ? "Saving..." : "Save Customer"}
+          <Button onClick={handleSave} loading={saving} loadingText="Saving...">
+            <Save className="w-4 h-4 mr-2" aria-hidden="true" />
+            Save Customer
           </Button>
         </div>
       </Card>

@@ -78,7 +78,13 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       {children}
 
       {/* Floating Toast Stack */}
-      <div className="fixed bottom-5 right-5 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none">
+      <div
+        role="region"
+        aria-label="Notifications"
+        aria-live="polite"
+        aria-atomic="false"
+        className="fixed bottom-5 right-5 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none"
+      >
         {toasts.map((t) => {
           const config = {
             success: {
@@ -116,8 +122,9 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
               <button
                 onClick={() => removeToast(t.id)}
                 className="p-1 rounded-lg hover:bg-black/5 transition-colors shrink-0 text-current opacity-70 hover:opacity-100"
+                aria-label={`Dismiss notification: ${t.title || t.message}`}
               >
-                <X className="w-4 h-4" />
+                <X className="w-4 h-4" aria-hidden="true" />
               </button>
             </div>
           );
@@ -130,8 +137,15 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
           <div
             className="fixed inset-0 bg-black/40 backdrop-blur-sm transition-opacity"
             onClick={() => confirmState.resolve(false)}
+            aria-hidden="true"
           />
-          <div className="relative bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4 z-10 animate-in zoom-in-95 duration-200">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="confirm-modal-title"
+            aria-describedby="confirm-modal-description"
+            className="relative bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4 z-10 animate-in zoom-in-95 duration-200"
+          >
             <div className="flex items-start gap-4">
               <div
                 className={`p-3 rounded-xl shrink-0 ${
@@ -140,13 +154,13 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
                     : "bg-blue-100 text-blue-600"
                 }`}
               >
-                <AlertTriangle className="w-6 h-6" />
+                <AlertTriangle className="w-6 h-6" aria-hidden="true" />
               </div>
               <div>
-                <h3 className="text-lg font-bold text-gray-900">
+                <h3 id="confirm-modal-title" className="text-lg font-bold text-gray-900">
                   {confirmState.options.title || "Confirmation"}
                 </h3>
-                <p className="text-sm text-gray-600 mt-1 whitespace-pre-line leading-relaxed">
+                <p id="confirm-modal-description" className="text-sm text-gray-600 mt-1 whitespace-pre-line leading-relaxed">
                   {confirmState.options.message}
                 </p>
               </div>

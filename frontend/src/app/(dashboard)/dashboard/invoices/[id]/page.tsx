@@ -9,6 +9,7 @@ import Button from "@/components/ui/Button";
 import ErrorState from "@/components/ui/ErrorState";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { formatCurrency, formatDate, getStatusColor } from "@/lib/utils";
+import { getErrorMessage } from "@/lib/api";
 import { useProgressiveStatus } from "@/hooks/useProgressiveStatus";
 import type { Invoice } from "@/types";
 
@@ -145,8 +146,8 @@ export default function InvoiceDetailPage() {
       }
       const res = await api.getInvoice(params.id as string);
       if (res.success) setInvoice(res.data);
-    } catch (err: any) {
-      toast.error(err.message || "Action failed");
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Action failed"));
     } finally {
       setAction(null);
     }
@@ -160,8 +161,8 @@ export default function InvoiceDetailPage() {
       toast.info("Preparing your PDF, this usually takes a few seconds...", "Downloading");
       await api.downloadInvoicePdf(invoice._id, invoice.invoiceNumber);
       toast.success("PDF downloaded successfully!");
-    } catch (err: any) {
-      toast.error(err.message || "Failed to generate PDF");
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Failed to generate PDF"));
     } finally {
       setAction(null);
     }
@@ -350,9 +351,10 @@ export default function InvoiceDetailPage() {
 
           {/* Bill To */}
           {(() => {
-            const customer = (typeof invoice.customerId === "object" && invoice.customerId !== null
-              ? invoice.customerId
-              : invoice.customer) as any;
+            const customer =
+              typeof invoice.customerId === "object" && invoice.customerId !== null
+                ? invoice.customerId
+                : invoice.customer;
 
             return (
               <div className={`mb-8 p-4 rounded-lg ${
@@ -389,7 +391,7 @@ export default function InvoiceDetailPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {invoice.items.map((item: any, i: number) => {
+              {invoice.items.map((item, i) => {
                 const itemAmount = item.total ?? item.amount ?? (item.quantity * item.unitPrice);
                 return (
                   <tr key={i} className={templateId === "modern" ? "hover:bg-indigo-50/20" : "hover:bg-gray-50"}>

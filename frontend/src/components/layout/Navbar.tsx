@@ -1,13 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
 import {
   Menu,
   X,
   ArrowRight,
-  Sparkles,
   LayoutDashboard,
   Layers,
   HelpCircle,
@@ -23,7 +22,6 @@ export default function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [activeSection, setActiveSection] = useState("");
   const pathname = usePathname();
-  const router = useRouter();
   const { isSignedIn } = useAuth();
 
   useEffect(() => {

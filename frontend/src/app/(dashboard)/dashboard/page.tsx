@@ -13,14 +13,13 @@ import {
   Users,
   Zap,
   ChevronRight,
-  CheckCircle2,
-  Circle,
   Sparkles,
 } from "lucide-react";
 import EmptyState from "@/components/ui/EmptyState";
 import ErrorState from "@/components/ui/ErrorState";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { formatCurrency, formatDate } from "@/lib/utils";
+import { getErrorMessage } from "@/lib/api";
 import type { DashboardData } from "@/types";
 
 /* ─────────────────────────────────────────────────────────────────────────
@@ -109,13 +108,12 @@ export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [greeting, setGreeting] = useState("Good morning");
-
-  useEffect(() => {
+  const [greeting] = useState(() => {
     const h = new Date().getHours();
-    if (h >= 12 && h < 17) setGreeting("Good afternoon");
-    else if (h >= 17) setGreeting("Good evening");
-  }, []);
+    if (h >= 12 && h < 17) return "Good afternoon";
+    if (h >= 17) return "Good evening";
+    return "Good morning";
+  });
 
   useEffect(() => {
     async function fetchDashboard() {
@@ -125,11 +123,8 @@ export default function DashboardPage() {
         const { api } = await import("@/lib/api");
         const res = await api.getDashboard();
         if (res.success) setData(res.data);
-      } catch (err: any) {
-        setError(
-          err.message ||
-            "We couldn't load your dashboard right now. Please try again."
-        );
+      } catch (err) {
+        setError(getErrorMessage(err, "We couldn't load your dashboard right now. Please try again."));
       } finally {
         setLoading(false);
       }
@@ -144,11 +139,8 @@ export default function DashboardPage() {
       const { api } = await import("@/lib/api");
       const res = await api.getDashboard();
       if (res.success) setData(res.data);
-    } catch (err: any) {
-      setError(
-        err.message ||
-          "We couldn't load your dashboard right now. Please try again."
-      );
+    } catch (err) {
+      setError(getErrorMessage(err, "We couldn't load your dashboard right now. Please try again."));
     } finally {
       setLoading(false);
     }
@@ -233,7 +225,7 @@ export default function DashboardPage() {
           <p className="text-sm font-medium text-emerald-600 mb-0.5">
             {greeting} 👋
           </p>
-          <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+          <h2 className="text-2xl font-bold text-slate-900 tracking-tight">
             Your Invoice Overview
           </h2>
           <p className="text-sm text-slate-500 mt-1">
@@ -299,7 +291,7 @@ export default function DashboardPage() {
               <div className="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center">
                 <FileText className="w-4 h-4 text-blue-600" />
               </div>
-              <h3 className="text-base font-bold text-slate-900">
+              <h3 className="text-base font-semibold text-slate-900">
                 Recent Invoices
               </h3>
             </div>
@@ -393,7 +385,7 @@ export default function DashboardPage() {
                 <div className="w-8 h-8 bg-purple-50 rounded-lg flex items-center justify-center">
                   <Users className="w-4 h-4 text-purple-600" />
                 </div>
-                <h3 className="text-base font-bold text-slate-900">
+                <h3 className="text-base font-semibold text-slate-900">
                   Top Customers
                 </h3>
               </div>
@@ -493,13 +485,13 @@ export default function DashboardPage() {
         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6">
           <div className="flex items-center gap-2 mb-5">
             <TrendingUp className="w-4 h-4 text-slate-400" />
-            <h3 className="text-base font-bold text-slate-900">
+            <h3 className="text-base font-semibold text-slate-900">
               Invoice Status Breakdown
             </h3>
           </div>
           <div className="space-y-3">
             {data.invoicesByStatus.map((s, idx) => {
-              const statusName = s.status || (s as any)._id || `status-${idx}`;
+              const statusName = s.status || s._id || `status-${idx}`;
               const pct =
                 totalInvoices > 0
                   ? Math.round((s.count / totalInvoices) * 100)

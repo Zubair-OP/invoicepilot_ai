@@ -1,13 +1,16 @@
 "use client";
 
 import { useEffect, useState, Suspense } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Check, CreditCard, ExternalLink, RefreshCw, Sparkles, LayoutTemplate, ShieldCheck, Crown, Clock, Bell } from "lucide-react";
+import { Check, CreditCard, ExternalLink, RefreshCw, Sparkles, LayoutTemplate, ShieldCheck, Crown } from "lucide-react";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
-import Loading from "@/components/ui/Loading";
+import ErrorState from "@/components/ui/ErrorState";
+import { Skeleton } from "@/components/ui/Skeleton";
 import Badge from "@/components/ui/Badge";
+import { getErrorMessage } from "@/lib/api";
+import { useProgressiveStatus } from "@/hooks/useProgressiveStatus";
 import type { BillingInfo, Plan } from "@/types";
 import { useToast } from "@/context/ToastContext";
 
@@ -19,19 +22,62 @@ function formatLimit(val: number | { limit: number; unlimited: boolean } | undef
   return val.unlimited || val.limit === -1 ? "Unlimited" : String(val.limit);
 }
 
+function BillingSkeleton() {
+  return (
+    <div className="max-w-5xl mx-auto space-y-6" role="status" aria-label="Loading billing">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="space-y-2">
+          <Skeleton className="h-8 w-52 rounded-lg" />
+          <Skeleton className="h-4 w-72 rounded-md" />
+        </div>
+        <Skeleton className="h-9 w-40 rounded-xl" />
+      </div>
+      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6">
+        <Skeleton className="h-5 w-32 rounded-md mb-5" />
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="space-y-2">
+              <Skeleton className="h-3 w-16 rounded-md" />
+              <Skeleton className="h-6 w-28 rounded-lg" />
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6">
+        <Skeleton className="h-5 w-40 rounded-md mb-5" />
+        <div className="grid sm:grid-cols-3 gap-4">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Skeleton key={i} className="h-24 w-full rounded-xl" />
+          ))}
+        </div>
+      </div>
+      <div>
+        <Skeleton className="h-5 w-36 rounded-md mb-4" />
+        <div className="grid md:grid-cols-3 gap-6">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Skeleton key={i} className="h-72 w-full rounded-2xl" />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function BillingContent() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
 
   const [billing, setBilling] = useState<BillingInfo | null>(null);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState("");
+  const [portalLoading, setPortalLoading] = useState(false);
   const [showSuccessBanner, setShowSuccessBanner] = useState(false);
+  const slowStatus = useProgressiveStatus(checkoutLoading !== "" || syncing || portalLoading);
 
-  const loadBillingData = async (sessionId?: string) => {
+  const loadBillingData = async (sessionId?: string): Promise<BillingInfo | null> => {
     try {
       const { api } = await import("@/lib/api");
       const [subRes, plansRes] = await Promise.all([
@@ -44,50 +90,56 @@ function BillingContent() {
       if (plansRes.success) {
         setPlans(plansRes.data);
       }
+      setError(false);
       return subRes.data;
-    } catch (err: any) {
-      toast.error(err.message || "Failed to load billing information");
+    } catch (err) {
+      setError(true);
+      toast.error(getErrorMessage(err, "We couldn't load your billing information right now."));
       return null;
     }
   };
 
   useEffect(() => {
+    let cancelled = false;
+
     async function init() {
       const checkoutStatus = searchParams?.get("checkout");
       const sessionId = searchParams?.get("session_id") || undefined;
 
-      if (checkoutStatus === "success") {
-        setSyncing(true);
-        try {
+      try {
+        if (checkoutStatus === "success") {
           const { api } = await import("@/lib/api");
           // Sync directly with Stripe API
           await api.syncSubscription(sessionId);
           const data = await loadBillingData(sessionId);
+          if (cancelled) return;
           setShowSuccessBanner(true);
           toast.success(
             `🎉 Payment successful! You are now subscribed to the ${data?.plan?.name || "Premium"} plan.`
           );
-        } catch {
+        } else if (checkoutStatus === "cancelled") {
+          toast.info("Checkout process was cancelled.");
           await loadBillingData();
-        } finally {
-          setSyncing(false);
-          setLoading(false);
+        } else {
+          await loadBillingData();
         }
-      } else if (checkoutStatus === "cancelled") {
-        toast.info("Checkout process was cancelled.");
+      } catch {
         await loadBillingData();
-        setLoading(false);
-      } else {
-        await loadBillingData();
-        setLoading(false);
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     }
 
     init();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
   const handleManualSync = async () => {
     setSyncing(true);
+    setError(false);
     try {
       const { api } = await import("@/lib/api");
       await api.syncSubscription();
@@ -95,8 +147,8 @@ function BillingContent() {
       toast.success(
         `Subscription synced! Active plan: ${data?.plan?.name || "Free"}`
       );
-    } catch (err: any) {
-      toast.error(err.message || "Failed to sync subscription");
+    } catch (err) {
+      toast.error(getErrorMessage(err, "We couldn't sync your subscription right now."));
     } finally {
       setSyncing(false);
     }
@@ -108,28 +160,48 @@ function BillingContent() {
       const { api } = await import("@/lib/api");
       const res = await api.createCheckout(planKey);
       if (res.data?.url) {
-        window.location.href = res.data.url;
+        window.location.assign(res.data.url);
       }
-    } catch (err: any) {
-      toast.error(err.message || "Checkout session failed");
-    } finally {
+    } catch (err) {
+      toast.error(getErrorMessage(err, "We couldn't start the checkout. Please try again."));
       setCheckoutLoading("");
     }
   };
 
   const handlePortal = async () => {
+    setPortalLoading(true);
     try {
       const { api } = await import("@/lib/api");
       const res = await api.openPortal();
       if (res.data?.url) {
-        window.location.href = res.data.url;
+        window.location.assign(res.data.url);
       }
-    } catch (err: any) {
-      toast.error(err.message || "Failed to open customer billing portal");
+    } catch (err) {
+      toast.error(getErrorMessage(err, "We couldn't open the billing portal right now."));
+    } finally {
+      setPortalLoading(false);
     }
   };
 
-  if (loading) return <Loading size="lg" text="Loading billing..." />;
+  const retry = async () => {
+    setLoading(true);
+    setError(false);
+    await loadBillingData();
+    setLoading(false);
+  };
+
+  if (loading) return <BillingSkeleton />;
+  if (error && !billing) {
+    return (
+      <div className="max-w-5xl mx-auto min-h-[50vh] flex items-center justify-center">
+        <ErrorState
+          title="Couldn't load your billing information"
+          description="We ran into a problem connecting. Your plan and payment details are safe — please try again."
+          onRetry={retry}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
@@ -144,11 +216,12 @@ function BillingContent() {
             variant="outline"
             size="sm"
             onClick={handleManualSync}
-            disabled={syncing}
-            className="flex items-center gap-1.5 text-xs text-gray-700 hover:text-gray-900"
+            loading={syncing}
+            loadingText="Syncing..."
+            className="text-xs text-gray-700 hover:text-gray-900"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${syncing ? "animate-spin" : ""}`} />
-            {syncing ? "Syncing..." : "Sync with Stripe"}
+            <RefreshCw className="w-3.5 h-3.5" aria-hidden="true" />
+            Sync with Stripe
           </Button>
         </div>
       </div>
@@ -159,7 +232,7 @@ function BillingContent() {
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
             <div className="space-y-1">
               <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/20 text-xs font-bold text-white mb-1">
-                <ShieldCheck className="w-4 h-4" /> Subscription Active
+                <ShieldCheck className="w-4 h-4" aria-hidden="true" /> Subscription Active
               </div>
               <h3 className="text-xl sm:text-2xl font-extrabold">
                 🎉 Welcome to the {billing.plan.name} Plan!
@@ -171,7 +244,7 @@ function BillingContent() {
             <div className="flex items-center gap-3">
               <Link href="/dashboard/templates">
                 <Button className="bg-white text-emerald-800 hover:bg-emerald-50 font-bold border-0 shadow-md">
-                  <LayoutTemplate className="w-4 h-4 mr-1.5" />
+                  <LayoutTemplate className="w-4 h-4 mr-1.5" aria-hidden="true" />
                   Choose Template
                 </Button>
               </Link>
@@ -192,8 +265,8 @@ function BillingContent() {
             <h3 className="font-semibold text-gray-900">Current Plan</h3>
             <div className="flex items-center gap-2">
               {billing.subscription && (
-                <Button variant="outline" size="sm" onClick={handlePortal}>
-                  <ExternalLink className="w-4 h-4 mr-2" />
+                <Button variant="outline" size="sm" onClick={handlePortal} loading={portalLoading} loadingText="Opening...">
+                  <ExternalLink className="w-4 h-4 mr-2" aria-hidden="true" />
                   Manage in Stripe
                 </Button>
               )}
@@ -205,7 +278,7 @@ function BillingContent() {
               <p className="text-lg font-bold text-gray-900 flex items-center gap-2">
                 {billing.plan.name}
                 {billing.plan.key !== "free" && (
-                  <Sparkles className="w-4 h-4 text-amber-500 fill-amber-500" />
+                  <Sparkles className="w-4 h-4 text-amber-500 fill-amber-500" aria-hidden="true" />
                 )}
               </p>
               <p className="text-sm text-gray-500 mt-1">{billing.plan.description}</p>
@@ -235,7 +308,7 @@ function BillingContent() {
               <div className="mt-1">
                 {billing.plan.limits.customReminderInterval ? (
                   <span className="inline-flex items-center gap-1 text-sm font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200/80">
-                    <Crown className="w-3.5 h-3.5 text-amber-600 fill-amber-500" /> Custom Frequency
+                    <Crown className="w-3.5 h-3.5 text-amber-600 fill-amber-500" aria-hidden="true" /> Custom Frequency
                   </span>
                 ) : (
                   <span className="text-sm font-medium text-gray-700">Daily Sweeps (24h)</span>
@@ -257,7 +330,7 @@ function BillingContent() {
         <Card>
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h3 className="font-bold text-gray-900">Current Period Usage</h3>
+              <h3 className="font-semibold text-gray-900">Current Period Usage</h3>
               <p className="text-xs text-gray-500 mt-0.5">Track your monthly plan consumption</p>
             </div>
           </div>
@@ -333,32 +406,32 @@ function BillingContent() {
                   <p className="text-sm text-gray-500 mt-2 mb-4">{plan.description}</p>
                   <ul className="space-y-2.5 mb-6">
                     <li className="flex items-center gap-2 text-sm text-gray-700">
-                      <Check className="w-4 h-4 text-green-600 shrink-0" />
+                      <Check className="w-4 h-4 text-green-600 shrink-0" aria-hidden="true" />
                       <span><strong>{formatLimit(plan.limits.invoicesPerMonth)}</strong> invoices/month</span>
                     </li>
                     <li className="flex items-center gap-2 text-sm text-gray-700">
-                      <Check className="w-4 h-4 text-green-600 shrink-0" />
+                      <Check className="w-4 h-4 text-green-600 shrink-0" aria-hidden="true" />
                       <span><strong>{formatLimit(plan.limits.customers)}</strong> customers</span>
                     </li>
                     <li className="flex items-center gap-2 text-sm text-gray-700">
-                      <Check className="w-4 h-4 text-green-600 shrink-0" />
+                      <Check className="w-4 h-4 text-green-600 shrink-0" aria-hidden="true" />
                       <span><strong>{formatLimit(plan.limits.aiGenerationsPerMonth)}</strong> AI generations</span>
                     </li>
                     <li className="flex items-center gap-2 text-sm text-gray-700">
-                      <Check className="w-4 h-4 text-green-600 shrink-0" />
+                      <Check className="w-4 h-4 text-green-600 shrink-0" aria-hidden="true" />
                       <span><strong className="text-gray-900">{plan.limits.templatesAllowed.length} {plan.limits.templatesAllowed.length === 1 ? "Template" : "Templates"}</strong> ({plan.limits.templatesAllowed.join(", ")})</span>
                     </li>
                     <li className="flex items-center gap-2 text-sm text-gray-700">
                       {plan.limits.customReminderInterval ? (
                         <>
-                          <Crown className="w-4 h-4 text-amber-500 fill-amber-500 shrink-0" />
+                          <Crown className="w-4 h-4 text-amber-500 fill-amber-500 shrink-0" aria-hidden="true" />
                           <span className="text-amber-900 font-semibold bg-amber-50/80 px-1.5 py-0.5 rounded border border-amber-200/60">
                             Custom Reminder Cadence (1h–12h)
                           </span>
                         </>
                       ) : (
                         <>
-                          <Check className="w-4 h-4 text-gray-400 shrink-0" />
+                          <Check className="w-4 h-4 text-gray-400 shrink-0" aria-hidden="true" />
                           <span className="text-gray-500">Standard Reminders (Daily 24h)</span>
                         </>
                       )}
@@ -370,12 +443,14 @@ function BillingContent() {
                   {!isCurrent && plan.checkoutEnabled && (
                     <Button
                       className="w-full"
-                      variant={plan.key === "pro" ? "primary" : plan.key === "premium" ? "primary" : "outline"}
+                      variant={plan.key === "pro" || plan.key === "premium" ? "primary" : "outline"}
                       onClick={() => handleCheckout(plan.key)}
-                      disabled={checkoutLoading === plan.key}
+                      loading={checkoutLoading === plan.key}
+                      loadingText="Preparing secure checkout..."
+                      disabled={checkoutLoading !== "" && checkoutLoading !== plan.key}
                     >
-                      <CreditCard className="w-4 h-4 mr-2" />
-                      {checkoutLoading === plan.key ? "Redirecting..." : `Upgrade to ${plan.name}`}
+                      <CreditCard className="w-4 h-4 mr-2" aria-hidden="true" />
+                      Upgrade to {plan.name}
                     </Button>
                   )}
                   {isCurrent && (
@@ -388,6 +463,9 @@ function BillingContent() {
             );
           })}
         </div>
+        {slowStatus && (
+          <p className="mt-4 text-xs text-gray-500" role="status">{slowStatus}</p>
+        )}
       </div>
     </div>
   );
@@ -395,7 +473,7 @@ function BillingContent() {
 
 export default function BillingPage() {
   return (
-    <Suspense fallback={<Loading size="lg" text="Loading billing..." />}>
+    <Suspense fallback={<BillingSkeleton />}>
       <BillingContent />
     </Suspense>
   );

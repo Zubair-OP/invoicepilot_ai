@@ -12,6 +12,7 @@ import Textarea from "@/components/ui/Textarea";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useToast } from "@/context/ToastContext";
 import { formatCurrency } from "@/lib/utils";
+import { getErrorMessage } from "@/lib/api";
 import { useProgressiveStatus } from "@/hooks/useProgressiveStatus";
 import type { Customer } from "@/types";
 
@@ -103,8 +104,8 @@ export default function NewInvoicePage() {
         setShowAi(false);
         toast.success("Invoice fields filled with AI successfully!");
       }
-    } catch (err: any) {
-      toast.error(err.message || "AI generation failed");
+    } catch (err) {
+      toast.error(getErrorMessage(err, "AI generation failed"));
     } finally {
       setAiLoading(false);
     }
@@ -139,8 +140,8 @@ export default function NewInvoicePage() {
         toast.success("Invoice created successfully!");
         router.push(`/dashboard/invoices/${res.data._id}`);
       }
-    } catch (err: any) {
-      toast.error(err.message || "Failed to create invoice");
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Failed to create invoice"));
     } finally {
       setSaving(false);
     }
