@@ -1,5 +1,31 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api/v1";
 
+/**
+ * User-friendly messages for common failure modes. We deliberately avoid
+ * exposing infrastructure details (host names, cold starts, etc.).
+ */
+const ERROR_MESSAGES = {
+  network:
+    "We couldn't reach our servers. Please check your connection and try again.",
+  timeout:
+    "This is taking a little longer than usual. Please don't close this page — try again in a moment.",
+  unauthorized:
+    "Your session has expired. Please sign in again to continue.",
+  generic: "Something went wrong. Please try again.",
+} as const;
+
+export class ApiError extends Error {
+  status?: number;
+  code?: string;
+
+  constructor(message: string, status?: number, code?: string) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.code = code;
+  }
+}
+
 async function waitForClerkSession(timeoutMs = 4000): Promise<any> {
   if (typeof window === "undefined") return null;
 
@@ -33,16 +59,45 @@ async function getToken(): Promise<string | null> {
   }
 }
 
+/**
+ * Aborts the request after `timeoutMs`. Falls back to the raw fetch when the
+ * AbortController signal is already consumed by the caller.
+ */
+function createTimeoutSignal(timeoutMs?: number): AbortSignal | undefined {
+  if (!timeoutMs) return undefined;
+  try {
+    const controller = new AbortController();
+    setTimeout(() => controller.abort(), timeoutMs);
+    return controller.signal;
+  } catch {
+    return undefined;
+  }
+}
+
+function toFriendlyError(err: unknown, status?: number): Error {
+  if (err instanceof ApiError) return err;
+  if (err instanceof DOMException && err.name === "AbortError") {
+    return new ApiError(ERROR_MESSAGES.timeout, status);
+  }
+  if (err instanceof TypeError) {
+    // fetch rejects with TypeError on network failure
+    return new ApiError(ERROR_MESSAGES.network, status);
+  }
+  if (err instanceof Error) return err;
+  return new ApiError(ERROR_MESSAGES.generic, status);
+}
+
 async function fetchApi<T>(
   endpoint: string,
-  options: RequestInit = {}
+  options: RequestInit & { timeoutMs?: number } = {}
 ): Promise<T> {
   const token = await getToken();
-  
+  const { timeoutMs, ...fetchOptions } = options;
+
   const buildHeaders = (t: string | null) => {
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
-      ...((options.headers as Record<string, string>) || {}),
+      ...((fetchOptions.headers as Record<string, string>) || {}),
     };
     if (t) {
       headers["Authorization"] = `Bearer ${t}`;
@@ -50,28 +105,70 @@ async function fetchApi<T>(
     return headers;
   };
 
-  let response = await fetch(`${API_BASE}${endpoint}`, {
-    ...options,
-    headers: buildHeaders(token),
-  });
+  const signal = createTimeoutSignal(timeoutMs);
+  const mergedSignal =
+    fetchOptions.signal && signal
+      ? abortAny([fetchOptions.signal, signal])
+      : signal || fetchOptions.signal;
+
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE}${endpoint}`, {
+      ...fetchOptions,
+      headers: buildHeaders(token),
+      signal: mergedSignal,
+    });
+  } catch (err) {
+    throw toFriendlyError(err);
+  }
 
   // If unauthorized, retry once with fresh token in case Clerk session just initialized
   if (response.status === 401) {
     const retryToken = await getToken();
     if (retryToken) {
-      response = await fetch(`${API_BASE}${endpoint}`, {
-        ...options,
-        headers: buildHeaders(retryToken),
-      });
+      try {
+        response = await fetch(`${API_BASE}${endpoint}`, {
+          ...fetchOptions,
+          headers: buildHeaders(retryToken),
+          signal: mergedSignal,
+        });
+      } catch (err) {
+        throw toFriendlyError(err);
+      }
     }
   }
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ message: "Request failed" }));
-    throw new Error(error.message || `HTTP ${response.status}`);
+    let message: string = ERROR_MESSAGES.generic;
+    let code: string | undefined;
+    try {
+      const body = await response.json();
+      if (body?.message) message = body.message;
+      if (body?.code) code = body.code;
+    } catch {
+      // keep the generic message
+    }
+
+    if (response.status === 401) {
+      message = ERROR_MESSAGES.unauthorized;
+    }
+
+    throw new ApiError(message, response.status, code);
   }
 
   return response.json();
+}
+
+function abortAny(signals: AbortSignal[]): AbortSignal {
+  const controller = new AbortController();
+  signals.forEach((signal) => {
+    if (signal.aborted) {
+      controller.abort();
+      return;
+    }
+    signal.addEventListener("abort", () => controller.abort(), { once: true });
+  });
+  return controller.signal;
 }
 
 export const api = {
@@ -111,13 +208,22 @@ export const api = {
       headers["Authorization"] = `Bearer ${token}`;
     }
 
-    const response = await fetch(`${API_BASE}/invoices/${id}/pdf`, {
-      headers,
-    });
+    let response: Response;
+    try {
+      response = await fetch(`${API_BASE}/invoices/${id}/pdf`, {
+        headers,
+        signal: createTimeoutSignal(45000),
+      });
+    } catch (err) {
+      throw toFriendlyError(err);
+    }
 
     if (!response.ok) {
       const err = await response.json().catch(() => ({ message: "Failed to download PDF" }));
-      throw new Error(err.message || `HTTP ${response.status}`);
+      throw new ApiError(
+        err.message || "We couldn't prepare your PDF right now. Please try again.",
+        response.status
+      );
     }
 
     const blob = await response.blob();
@@ -173,3 +279,5 @@ export const api = {
     return fetchApi<any>(`/admin/analytics${query}`);
   },
 };
+
+export { ERROR_MESSAGES, toFriendlyError };

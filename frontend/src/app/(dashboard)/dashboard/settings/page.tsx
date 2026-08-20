@@ -7,7 +7,8 @@ import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import Select from "@/components/ui/Select";
 import Textarea from "@/components/ui/Textarea";
-import Loading from "@/components/ui/Loading";
+import ErrorState from "@/components/ui/ErrorState";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { useToast } from "@/context/ToastContext";
 import type { UserSettings } from "@/types";
 
@@ -15,11 +16,14 @@ export default function SettingsPage() {
   const { toast } = useToast();
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [saving, setSaving] = useState(false);
   const [isPremium, setIsPremium] = useState(false);
 
   useEffect(() => {
     async function load() {
+      setLoading(true);
+      setError(false);
       try {
         const { api } = await import("@/lib/api");
         const [settingsRes, billingRes] = await Promise.all([
@@ -36,7 +40,9 @@ export default function SettingsPage() {
         if (billingRes.success) {
           setIsPremium(billingRes.data?.subscription?.planKey === "premium");
         }
-      } catch {} finally {
+      } catch {
+        setError(true);
+      } finally {
         setLoading(false);
       }
     }
@@ -61,8 +67,37 @@ export default function SettingsPage() {
     }
   };
 
-  if (loading) return <Loading size="lg" text="Loading settings..." />;
-  if (!settings) return <div className="text-center py-12 text-gray-500">Failed to load settings</div>;
+  if (loading)
+    return (
+      <div className="max-w-3xl mx-auto space-y-6" role="status" aria-label="Loading settings">
+        <div className="flex items-center justify-between">
+          <div className="space-y-2">
+            <Skeleton className="h-8 w-36 rounded-lg" />
+            <Skeleton className="h-4 w-72 rounded-md" />
+          </div>
+          <Skeleton className="h-10 w-40 rounded-xl" />
+        </div>
+        {Array.from({ length: 3 }).map((_, i) => (
+          <div key={i} className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 space-y-4">
+            <Skeleton className="h-5 w-48 rounded-md" />
+            <Skeleton className="h-10 w-full rounded-lg" />
+            <Skeleton className="h-10 w-full rounded-lg" />
+            <Skeleton className="h-10 w-1/2 rounded-lg" />
+          </div>
+        ))}
+      </div>
+    );
+  if (error)
+    return (
+      <div className="max-w-3xl mx-auto min-h-[40vh] flex items-center justify-center">
+        <ErrorState
+          title="Couldn't load your settings"
+          description="We ran into a problem connecting. Your settings are safe — please try again."
+          onRetry={() => window.location.reload()}
+        />
+      </div>
+    );
+  if (!settings) return <div className="text-center py-12 text-gray-500">Settings unavailable</div>;
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
@@ -71,9 +106,9 @@ export default function SettingsPage() {
           <h2 className="text-2xl font-bold text-gray-900">Settings</h2>
           <p className="text-sm text-gray-500 mt-1">Configure your business profile, sender email, and invoice defaults</p>
         </div>
-        <Button onClick={handleSave} disabled={saving}>
+        <Button onClick={handleSave} loading={saving} loadingText="Saving settings...">
           <Save className="w-4 h-4 mr-2" />
-          {saving ? "Saving..." : "Save Settings"}
+          Save Settings
         </Button>
       </div>
 

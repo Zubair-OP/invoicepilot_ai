@@ -2,16 +2,17 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Plus, Trash2, Sparkles, Save, Download } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Sparkles, Save } from "lucide-react";
 import Link from "next/link";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import Select from "@/components/ui/Select";
 import Textarea from "@/components/ui/Textarea";
-import Loading from "@/components/ui/Loading";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { useToast } from "@/context/ToastContext";
 import { formatCurrency } from "@/lib/utils";
+import { useProgressiveStatus } from "@/hooks/useProgressiveStatus";
 import type { Customer } from "@/types";
 
 interface InvoiceItem {
@@ -25,10 +26,12 @@ export default function NewInvoicePage() {
   const { toast } = useToast();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
+  const [customersError, setCustomersError] = useState(false);
   const [saving, setSaving] = useState(false);
   const [aiPrompt, setAiPrompt] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
   const [showAi, setShowAi] = useState(false);
+  const slowStatus = useProgressiveStatus(aiLoading);
 
   const [form, setForm] = useState({
     customerId: "",
@@ -42,11 +45,15 @@ export default function NewInvoicePage() {
 
   useEffect(() => {
     async function load() {
+      setLoading(true);
+      setCustomersError(false);
       try {
         const { api } = await import("@/lib/api");
         const res = await api.getCustomers({ limit: "100" });
         if (res.success) setCustomers(res.data);
-      } catch {} finally {
+      } catch {
+        setCustomersError(true);
+      } finally {
         setLoading(false);
       }
     }
@@ -139,7 +146,44 @@ export default function NewInvoicePage() {
     }
   };
 
-  if (loading) return <Loading size="lg" text="Loading..." />;
+  if (loading)
+    return (
+      <div className="max-w-5xl mx-auto space-y-6" role="status" aria-label="Loading new invoice">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Skeleton className="w-10 h-10 rounded-lg" />
+            <div className="space-y-2">
+              <Skeleton className="h-8 w-36 rounded-lg" />
+              <Skeleton className="h-4 w-48 rounded-md" />
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Skeleton className="h-10 w-36 rounded-xl" />
+            <Skeleton className="h-10 w-40 rounded-xl" />
+          </div>
+        </div>
+        <div className="grid lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 space-y-6">
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+              <Skeleton className="h-5 w-32 rounded-md mb-4" />
+              <Skeleton className="h-10 w-full rounded-lg" />
+            </div>
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 space-y-3">
+              <Skeleton className="h-5 w-32 rounded-md" />
+              {Array.from({ length: 3 }).map((_, i) => (
+                <Skeleton key={i} className="h-10 w-full rounded-lg" />
+              ))}
+            </div>
+          </div>
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+            <Skeleton className="h-5 w-36 rounded-md mb-4" />
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} className="h-6 w-full rounded-lg mb-3" />
+            ))}
+          </div>
+        </div>
+      </div>
+    );
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
@@ -158,9 +202,9 @@ export default function NewInvoicePage() {
             <Sparkles className="w-4 h-4 mr-2" />
             Fill with AI
           </Button>
-          <Button onClick={handleSave} disabled={saving}>
+          <Button onClick={handleSave} loading={saving} loadingText="Saving invoice...">
             <Save className="w-4 h-4 mr-2" />
-            {saving ? "Saving..." : "Save Invoice"}
+            Save Invoice
           </Button>
         </div>
       </div>
@@ -181,10 +225,13 @@ export default function NewInvoicePage() {
               className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
               onKeyDown={(e) => e.key === "Enter" && handleAiGenerate()}
             />
-            <Button onClick={handleAiGenerate} disabled={aiLoading}>
-              {aiLoading ? "Generating..." : "Generate"}
+            <Button onClick={handleAiGenerate} loading={aiLoading} loadingText="Generating with AI...">
+              Generate
             </Button>
           </div>
+          {slowStatus && (
+            <p className="mt-2 text-xs text-gray-500" role="status">{slowStatus}</p>
+          )}
         </Card>
       )}
 
@@ -204,7 +251,17 @@ export default function NewInvoicePage() {
                 ...customers.map((c) => ({ value: c._id, label: c.name })),
               ]}
             />
-            {customers.length === 0 && (
+            {customersError ? (
+              <p className="text-sm text-red-600 mt-2" role="alert">
+                {"We couldn't load your customers."}{" "}
+                <button
+                  onClick={() => window.location.reload()}
+                  className="text-red-700 underline font-medium hover:text-red-800"
+                >
+                  Try again
+                </button>
+              </p>
+            ) : customers.length === 0 && (
               <p className="text-sm text-gray-500 mt-2">
                 No customers yet.{" "}
                 <Link href="/dashboard/customers/new" className="text-green-600 hover:underline">

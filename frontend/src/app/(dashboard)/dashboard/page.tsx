@@ -17,10 +17,72 @@ import {
   Circle,
   Sparkles,
 } from "lucide-react";
-import Loading from "@/components/ui/Loading";
 import EmptyState from "@/components/ui/EmptyState";
-import { formatCurrency, formatDate, getStatusColor } from "@/lib/utils";
+import ErrorState from "@/components/ui/ErrorState";
+import { Skeleton } from "@/components/ui/Skeleton";
+import { formatCurrency, formatDate } from "@/lib/utils";
 import type { DashboardData } from "@/types";
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Skeleton shown while the dashboard loads
+   ───────────────────────────────────────────────────────────────────── */
+function DashboardSkeleton() {
+  return (
+    <div className="space-y-8 max-w-7xl">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="space-y-2">
+          <Skeleton className="h-4 w-28 rounded-md" />
+          <Skeleton className="h-8 w-64 rounded-lg" />
+          <Skeleton className="h-4 w-52 rounded-md" />
+        </div>
+        <Skeleton className="h-11 w-40 rounded-xl" />
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+              <Skeleton className="h-10 w-10 rounded-xl" />
+              <Skeleton className="h-5 w-16 rounded-full" />
+            </div>
+            <Skeleton className="h-3 w-20 rounded-md mb-2" />
+            <Skeleton className="h-7 w-28 rounded-lg" />
+          </div>
+        ))}
+      </div>
+      <div className="grid lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-slate-100">
+            <Skeleton className="h-5 w-36 rounded-md" />
+          </div>
+          <div className="p-6 space-y-4">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-4">
+                <Skeleton className="h-4 w-28 rounded-md" />
+                <Skeleton className="h-4 w-24 rounded-md" />
+                <Skeleton className="h-6 w-20 rounded-full" />
+                <Skeleton className="h-4 w-16 rounded-md ml-auto" />
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="space-y-6">
+          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-5 space-y-3">
+            <Skeleton className="h-5 w-32 rounded-md" />
+            {Array.from({ length: 3 }).map((_, i) => (
+              <Skeleton key={i} className="h-12 w-full rounded-xl" />
+            ))}
+          </div>
+          <div className="bg-slate-900 rounded-2xl border border-slate-700/50 shadow-sm p-5 space-y-3">
+            <Skeleton className="h-5 w-32 rounded-md bg-slate-700/60" />
+            {Array.from({ length: 3 }).map((_, i) => (
+              <Skeleton key={i} className="h-10 w-full rounded-xl bg-slate-700/40" />
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 /* ─────────────────────────────────────────────────────────────────────────
    Status pill helper
@@ -57,12 +119,17 @@ export default function DashboardPage() {
 
   useEffect(() => {
     async function fetchDashboard() {
+      setLoading(true);
+      setError("");
       try {
         const { api } = await import("@/lib/api");
         const res = await api.getDashboard();
         if (res.success) setData(res.data);
       } catch (err: any) {
-        setError(err.message || "Failed to load dashboard");
+        setError(
+          err.message ||
+            "We couldn't load your dashboard right now. Please try again."
+        );
       } finally {
         setLoading(false);
       }
@@ -70,19 +137,32 @@ export default function DashboardPage() {
     fetchDashboard();
   }, []);
 
-  if (loading)
-    return (
-      <div className="flex items-center justify-center min-h-[50vh]">
-        <Loading size="lg" text="Loading dashboard..." />
-      </div>
-    );
+  const retry = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const { api } = await import("@/lib/api");
+      const res = await api.getDashboard();
+      if (res.success) setData(res.data);
+    } catch (err: any) {
+      setError(
+        err.message ||
+          "We couldn't load your dashboard right now. Please try again."
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) return <DashboardSkeleton />;
   if (error)
     return (
       <div className="flex items-center justify-center min-h-[50vh]">
-        <div className="text-center">
-          <AlertTriangle className="w-10 h-10 text-red-400 mx-auto mb-3" />
-          <p className="text-slate-600 font-medium">{error}</p>
-        </div>
+        <ErrorState
+          title="Couldn't load your dashboard"
+          description="We ran into a problem connecting. Please try again."
+          onRetry={retry}
+        />
       </div>
     );
   if (!data) return <EmptyState title="No data available" />;

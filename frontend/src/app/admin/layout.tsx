@@ -217,7 +217,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               <Shield className="w-3.5 h-3.5" /> Super Admin
             </span>
             <UserButton
-              afterSignOutUrl="/"
               appearance={{
                 elements: {
                   avatarBox: "w-9 h-9 ring-2 ring-purple-500/20 ring-offset-2 hover:ring-purple-500/40 transition-all",

@@ -93,6 +93,14 @@ export const metadata: Metadata = {
     images: ["/og-image.png"],
     creator: "@invoicepilotai",
   },
+  icons: {
+    icon: [
+      { url: "/icon.svg", type: "image/svg+xml" },
+      { url: "/favicon.svg", type: "image/svg+xml" },
+    ],
+    apple: [{ url: "/icon.svg" }],
+    shortcut: ["/icon.svg"],
+  },
 };
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -188,7 +196,7 @@ const jsonLd = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <ClerkProvider>
+    <ClerkProvider afterSignOutUrl="/">
       <html
         lang="en"
         className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}

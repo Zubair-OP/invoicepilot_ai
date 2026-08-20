@@ -73,11 +73,11 @@ export default function RegisterPage() {
                 colorPrimary: "#16a34a",
                 colorBackground: "#ffffff",
                 colorNeutral: "#111827",
-                colorInputText: "#111827",
+                colorInput: "#111827",
                 borderRadius: "8px",
                 fontFamily: "inherit",
                 fontSize: "13.5px",
-                spacingUnit: "10px",
+                spacing: "10px",
               },
               elements: {
                 rootBox: "auth-clerk-root",

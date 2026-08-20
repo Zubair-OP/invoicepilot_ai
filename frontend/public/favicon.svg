@@ -1,0 +1,35 @@
+<svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="ip-bg-grad" x1="4" y1="4" x2="44" y2="44" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stopColor="#059669" />
+      <stop offset="50%" stopColor="#10B981" />
+      <stop offset="100%" stopColor="#0D9488" />
+    </linearGradient>
+    <linearGradient id="ip-wing-grad" x1="12" y1="10" x2="38" y2="36" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stopColor="#FFFFFF" />
+      <stop offset="100%" stopColor="#E6FFFA" />
+    </linearGradient>
+    <filter id="ip-glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="2" stdDeviation="2" floodColor="#064E3B" floodOpacity="0.35" />
+    </filter>
+  </defs>
+
+  <!-- Base Squircle Container -->
+  <rect width="48" height="48" rx="13" fill="url(#ip-bg-grad)" />
+
+  <!-- Subtle Inner Border Shine -->
+  <rect x="0.75" y="0.75" width="46.5" height="46.5" rx="12.25" stroke="white" stroke-opacity="0.25" stroke-width="1.5" />
+
+  <!-- Background Invoice Lines -->
+  <path d="M12 33H22M12 37H18" stroke="white" stroke-opacity="0.4" stroke-width="2" stroke-linecap="round" />
+
+  <!-- The Pilot Flight Wing -->
+  <g filter="url(#ip-glow)">
+    <path d="M37 11L11 23.5L22.5 27.5L37 11Z" fill="url(#ip-wing-grad)" />
+    <path d="M22.5 27.5L25.5 35L29 29.5L37 11L22.5 27.5Z" fill="#D1FAE5" />
+    <path d="M22.5 27.5L37 11" stroke="#059669" stroke-width="0.8" stroke-opacity="0.4" />
+  </g>
+
+  <!-- AI Sparkle Star -->
+  <path d="M37 8C37 9.5 38.5 11 40 11C38.5 11 37 12.5 37 14C37 12.5 35.5 11 34 11C35.5 11 37 9.5 37 8Z" fill="#FEF08A" />
+</svg>

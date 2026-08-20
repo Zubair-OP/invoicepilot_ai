@@ -113,9 +113,9 @@ export default function AdminDashboardPage() {
     return (
       <div className="bg-white rounded-2xl p-12 text-center border border-slate-200 shadow-sm max-w-lg mx-auto my-12">
         <ShieldCheck className="w-12 h-12 text-slate-400 mx-auto mb-3" />
-        <h3 className="text-base font-bold text-slate-900 mb-1">Failed to load platform analytics</h3>
+        <h3 className="text-base font-bold text-slate-900 mb-1">Couldn't load platform analytics</h3>
         <p className="text-xs text-slate-500 mb-4">
-          Could not retrieve data from the admin service. Please verify your connection or admin permissions.
+          We ran into a problem connecting to the platform data. Please try again.
         </p>
         <button
           onClick={() => loadData(rangeDays)}

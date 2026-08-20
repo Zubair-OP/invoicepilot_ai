@@ -128,7 +128,7 @@ export default function DashboardLayout({
 
             {/* User avatar */}
             <div className="pl-1">
-              <UserButton afterSignOutUrl="/" />
+              <UserButton />
             </div>
           </div>
         </header>

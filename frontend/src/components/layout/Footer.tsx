@@ -9,6 +9,8 @@ import {
   CheckCircle2,
 } from "lucide-react";
 
+import BrandLogo from "@/components/common/BrandLogo";
+
 export default function Footer() {
   const pathname = usePathname();
 
@@ -36,21 +38,9 @@ export default function Footer() {
         <div className="grid grid-cols-2 md:grid-cols-6 gap-10 lg:gap-12">
           {/* Brand Info — 2 cols wide */}
           <div className="col-span-2">
-            <Link
-              href="/"
-              className="flex items-center gap-2.5 mb-4 group"
-              aria-label="InvoicePilot AI — Home"
-            >
-              <div className="w-8 h-8 bg-gradient-to-tr from-emerald-600 to-green-500 rounded-xl flex items-center justify-center shadow-md shadow-emerald-600/20 group-hover:scale-105 transition-transform">
-                <FileText className="w-4 h-4 text-white" />
-              </div>
-              <span className="text-xl font-extrabold text-slate-900 tracking-tight">
-                Invoice<span className="text-emerald-600">Pilot</span>
-              </span>
-              <span className="text-[10px] font-bold px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200/80 rounded-full flex items-center gap-1">
-                <Sparkles className="w-2.5 h-2.5" /> AI
-              </span>
-            </Link>
+            <div className="mb-4">
+              <BrandLogo size="md" showBadge={true} href="/" />
+            </div>
             <p className="text-sm text-slate-500 max-w-sm mb-5 leading-relaxed">
               The AI-first invoice management platform for modern freelancers,
               consultants, and fast-growing businesses. GST-compliant, fast, and

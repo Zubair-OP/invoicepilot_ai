@@ -3,15 +3,54 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Send, DollarSign, Download, Mail, FileText, Trash2, Printer, Ban } from "lucide-react";
+import { ArrowLeft, DollarSign, Download, Mail, Trash2, Printer, Ban } from "lucide-react";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
-import Loading from "@/components/ui/Loading";
-import Badge from "@/components/ui/Badge";
+import ErrorState from "@/components/ui/ErrorState";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { formatCurrency, formatDate, getStatusColor } from "@/lib/utils";
+import { useProgressiveStatus } from "@/hooks/useProgressiveStatus";
 import type { Invoice } from "@/types";
 
 import { useToast } from "@/context/ToastContext";
+
+function InvoiceDetailSkeleton() {
+  return (
+    <div className="max-w-5xl mx-auto space-y-6">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <Skeleton className="w-10 h-10 rounded-lg" />
+          <div className="space-y-2">
+            <Skeleton className="h-7 w-40 rounded-lg" />
+            <Skeleton className="h-4 w-32 rounded-md" />
+          </div>
+        </div>
+        <Skeleton className="h-8 w-24 rounded-full" />
+      </div>
+      <div className="flex gap-2">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Skeleton key={i} className="h-10 w-32 rounded-lg" />
+        ))}
+      </div>
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-8">
+        <div className="flex justify-between mb-8">
+          <div className="space-y-2">
+            <Skeleton className="h-8 w-36 rounded-lg" />
+            <Skeleton className="h-4 w-24 rounded-md" />
+          </div>
+          <div className="space-y-2 text-right">
+            <Skeleton className="h-4 w-28 rounded-md" />
+            <Skeleton className="h-4 w-24 rounded-md" />
+          </div>
+        </div>
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Skeleton key={i} className="h-10 w-full rounded-lg mb-3" />
+        ))}
+        <Skeleton className="h-24 w-72 rounded-lg ml-auto" />
+      </div>
+    </div>
+  );
+}
 
 export default function InvoiceDetailPage() {
   const params = useParams();
@@ -20,10 +59,16 @@ export default function InvoiceDetailPage() {
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [templateId, setTemplateId] = useState<string>("classic");
   const [loading, setLoading] = useState(true);
-  const [actionLoading, setActionLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [action, setAction] = useState<string | null>(null);
+  const slowStatus = useProgressiveStatus(
+    action === "email" || action === "send" || action === "download"
+  );
 
   useEffect(() => {
     async function load() {
+      setLoading(true);
+      setError(null);
       try {
         const { api } = await import("@/lib/api");
         const [invRes, settingsRes] = await Promise.all([
@@ -34,18 +79,20 @@ export default function InvoiceDetailPage() {
         if (settingsRes.success && settingsRes.data?.templateId) {
           setTemplateId(settingsRes.data.templateId);
         }
-      } catch {} finally {
+      } catch {
+        setError("We couldn't load this invoice right now. Please try again.");
+      } finally {
         setLoading(false);
       }
     }
     load();
   }, [params.id]);
 
-  const handleAction = async (action: string) => {
-    setActionLoading(true);
+  const handleAction = async (nextAction: string) => {
+    setAction(nextAction);
     try {
       const { api } = await import("@/lib/api");
-      switch (action) {
+      switch (nextAction) {
         case "send":
           await api.sendInvoice(invoice!._id);
           toast.success("Invoice marked as sent!");
@@ -101,33 +148,48 @@ export default function InvoiceDetailPage() {
     } catch (err: any) {
       toast.error(err.message || "Action failed");
     } finally {
-      setActionLoading(false);
+      setAction(null);
     }
   };
 
   const handleDownloadPdf = async () => {
     if (!invoice) return;
-    setActionLoading(true);
+    setAction("download");
     try {
       const { api } = await import("@/lib/api");
-      toast.info("Generating PDF, please wait...", "Downloading");
+      toast.info("Preparing your PDF, this usually takes a few seconds...", "Downloading");
       await api.downloadInvoicePdf(invoice._id, invoice.invoiceNumber);
       toast.success("PDF downloaded successfully!");
     } catch (err: any) {
       toast.error(err.message || "Failed to generate PDF");
     } finally {
-      setActionLoading(false);
+      setAction(null);
     }
   };
 
-  if (loading) return <Loading size="lg" text="Loading invoice..." />;
+  if (loading) return <InvoiceDetailSkeleton />;
+  if (error)
+    return (
+      <ErrorState
+        title="Couldn't load this invoice"
+        description="We ran into a problem while fetching it. Your data is safe."
+        onRetry={() => {
+          setLoading(true);
+          setError(null);
+          // Re-trigger the load effect by resetting state
+          window.location.reload();
+        }}
+      />
+    );
   if (!invoice) return <div className="text-center py-12 text-gray-500">Invoice not found</div>;
+
+  const busy = action !== null;
 
   return (
     <div className="max-w-5xl mx-auto space-y-6 print:m-0 print:p-0 print:max-w-none print:space-y-0">
       <div className="flex items-center justify-between print:hidden">
         <div className="flex items-center gap-4">
-          <Link href="/dashboard/invoices" className="p-2 rounded-lg hover:bg-gray-100">
+          <Link href="/dashboard/invoices" className="p-2 rounded-lg hover:bg-gray-100" aria-label="Back to invoices">
             <ArrowLeft className="w-5 h-5" />
           </Link>
           <div>
@@ -145,82 +207,86 @@ export default function InvoiceDetailPage() {
       {/* Actions — shown only based on invoice status */}
       <Card className="print:hidden">
         <div className="flex flex-wrap gap-2 items-center">
-
           {/* ── DRAFT: send email (marks as SENT), download, delete ── */}
           {invoice.status === "DRAFT" && (<>
-            <Button onClick={() => handleAction("email")} disabled={actionLoading}>
+            <Button onClick={() => handleAction("email")} loading={action === "email"} loadingText="Sending invoice...">
               <Mail className="w-4 h-4 mr-2" />
               Send via Email
             </Button>
-            <Button variant="outline" onClick={handleDownloadPdf} disabled={actionLoading}>
+            <Button variant="outline" onClick={handleDownloadPdf} loading={action === "download"} loadingText="Preparing PDF...">
               <Download className="w-4 h-4 mr-2" />
               Download PDF
             </Button>
-            <Button variant="outline" onClick={() => window.print()}>
+            <Button variant="outline" onClick={() => window.print()} disabled={busy}>
               <Printer className="w-4 h-4 mr-2" />Print
             </Button>
-            <Button variant="danger" onClick={() => handleAction("delete")} disabled={actionLoading}>
+            <Button variant="danger" onClick={() => handleAction("delete")} disabled={busy}>
               <Trash2 className="w-4 h-4 mr-2" />Delete Draft
             </Button>
-          </>)}
+          </>)} 
 
           {/* ── SENT / OVERDUE: can pay, resend email, download, void ── */}
           {(invoice.status === "SENT" || invoice.status === "OVERDUE") && (<>
-            <Button onClick={() => handleAction("pay")} disabled={actionLoading}>
+            <Button onClick={() => handleAction("pay")} loading={action === "pay"} loadingText="Marking as paid...">
               <DollarSign className="w-4 h-4 mr-2" />Mark as Paid
             </Button>
-            <Button variant="outline" onClick={() => handleAction("email")} disabled={actionLoading}>
+            <Button variant="outline" onClick={() => handleAction("email")} loading={action === "email"} loadingText="Sending...">
               <Mail className="w-4 h-4 mr-2" />
               {invoice.status === "OVERDUE" ? "Send Reminder" : "Resend Email"}
             </Button>
-            <Button variant="outline" onClick={handleDownloadPdf} disabled={actionLoading}>
+            <Button variant="outline" onClick={handleDownloadPdf} loading={action === "download"} loadingText="Preparing PDF...">
               <Download className="w-4 h-4 mr-2" />
               Download PDF
             </Button>
-            <Button variant="outline" onClick={() => window.print()}>
+            <Button variant="outline" onClick={() => window.print()} disabled={busy}>
               <Printer className="w-4 h-4 mr-2" />Print
             </Button>
-            <Button variant="danger" onClick={() => handleAction("void")} disabled={actionLoading}>
+            <Button variant="danger" onClick={() => handleAction("void")} disabled={busy}>
               <Ban className="w-4 h-4 mr-2" />Void Invoice
             </Button>
-          </>)}
+          </>)} 
 
           {/* ── PAID: download & void only — no email, no re-pay ── */}
           {invoice.status === "PAID" && (<>
-            <Button variant="outline" onClick={handleDownloadPdf} disabled={actionLoading}>
+            <Button variant="outline" onClick={handleDownloadPdf} loading={action === "download"} loadingText="Preparing PDF...">
               <Download className="w-4 h-4 mr-2" />
               Download PDF
             </Button>
-            <Button variant="outline" onClick={() => window.print()}>
+            <Button variant="outline" onClick={() => window.print()} disabled={busy}>
               <Printer className="w-4 h-4 mr-2" />Print
             </Button>
-            <Button variant="danger" onClick={() => handleAction("void")} disabled={actionLoading}>
+            <Button variant="danger" onClick={() => handleAction("void")} disabled={busy}>
               <Ban className="w-4 h-4 mr-2" />Void Invoice
             </Button>
-          </>)}
+          </>)} 
 
           {/* ── CANCELLED: show restore button prominently + download ── */}
           {invoice.status === "CANCELLED" && (<>
             <span className="text-sm text-orange-600 font-medium mr-2">⚠ This invoice has been voided</span>
             <Button
               onClick={() => handleAction("unvoid")}
-              disabled={actionLoading}
+              loading={action === "unvoid"}
+              loadingText="Restoring..."
               className="bg-emerald-600 hover:bg-emerald-700 text-white"
             >
               ↩ Restore Invoice
             </Button>
-            <Button variant="outline" onClick={handleDownloadPdf} disabled={actionLoading}>
+            <Button variant="outline" onClick={handleDownloadPdf} loading={action === "download"} loadingText="Preparing PDF...">
               <Download className="w-4 h-4 mr-2" />
               Download PDF
             </Button>
-            <Button variant="outline" onClick={() => window.print()}>
+            <Button variant="outline" onClick={() => window.print()} disabled={busy}>
               <Printer className="w-4 h-4 mr-2" />Print
             </Button>
-          </>)}
+          </>)} 
 
         </div>
+        {slowStatus && (
+          <p className="mt-3 text-xs text-gray-500" role="status">
+            {slowStatus}
+          </p>
+        )}
       </Card>
-
 
       {/* Invoice Preview (Dynamically styled by selected template) */}
       <Card className="invoice-print-root print:p-0 print:shadow-none print:border-none print:rounded-none print:bg-transparent">

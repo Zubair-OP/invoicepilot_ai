@@ -1,26 +1,46 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Search, Shield, UserCheck, UserX } from "lucide-react";
+import { Search, Shield, UserCheck, UserX, Loader2 } from "lucide-react";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
-import Loading from "@/components/ui/Loading";
+import ErrorState from "@/components/ui/ErrorState";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { formatDate } from "@/lib/utils";
 import type { User } from "@/types";
 
 import { useToast } from "@/context/ToastContext";
 
+function UsersTableSkeleton() {
+  return (
+    <div className="p-6 space-y-5">
+      {Array.from({ length: 6 }).map((_, i) => (
+        <div key={i} className="flex items-center gap-4">
+          <Skeleton className="h-9 w-9 rounded-xl" />
+          <Skeleton className="h-4 w-40 rounded-md" />
+          <Skeleton className="h-4 w-24 rounded-md" />
+          <Skeleton className="h-4 w-24 rounded-md" />
+          <Skeleton className="h-8 w-24 rounded-lg ml-auto" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function AdminUsersPage() {
   const { toast, confirmModal } = useToast();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [busyId, setBusyId] = useState<string | null>(null);
 
   const fetchUsers = async () => {
     setLoading(true);
+    setError(false);
     try {
       const { api } = await import("@/lib/api");
       const params: Record<string, string> = { page: String(page), limit: "10" };
@@ -31,13 +51,16 @@ export default function AdminUsersPage() {
         setUsers(res.data);
         setTotalPages(res.meta?.totalPages || 1);
       }
-    } catch {} finally {
+    } catch {
+      setError(true);
+    } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
     fetchUsers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, roleFilter]);
 
   const handleRoleChange = async (userId: string, newRole: string) => {
@@ -48,6 +71,7 @@ export default function AdminUsersPage() {
       variant: newRole === "ADMIN" ? "danger" : "primary",
     });
     if (!ok) return;
+    setBusyId(userId);
     try {
       const { api } = await import("@/lib/api");
       await api.adminChangeRole(userId, newRole);
@@ -55,6 +79,8 @@ export default function AdminUsersPage() {
       toast.success(`Role updated to ${newRole}`);
     } catch (err: any) {
       toast.error(err.message || "Failed to change role");
+    } finally {
+      setBusyId(null);
     }
   };
 
@@ -100,8 +126,14 @@ export default function AdminUsersPage() {
         </div>
 
         {loading ? (
-          <div className="py-16">
-            <Loading size="lg" text="Loading platform accounts..." />
+          <UsersTableSkeleton />
+        ) : error ? (
+          <div className="py-8">
+            <ErrorState
+              title="Couldn't load platform accounts"
+              description="We ran into a problem connecting. Please try again."
+              onRetry={fetchUsers}
+            />
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -115,9 +147,17 @@ export default function AdminUsersPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {users.map((user) => {
+                {users.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="text-center py-10 text-slate-400 text-sm">
+                      {search || roleFilter ? "No users match your filters" : "No registered users found"}
+                    </td>
+                  </tr>
+                ) : (
+                users.map((user) => {
                   const initial = (user.name || user.email || "U").charAt(0).toUpperCase();
                   const isAdmin = user.role === "ADMIN";
+                  const busy = busyId === user._id;
 
                   return (
                     <tr key={user._id} className="hover:bg-slate-50/70 transition-colors">
@@ -154,19 +194,23 @@ export default function AdminUsersPage() {
                           {user.role === "USER" ? (
                             <button
                               onClick={() => handleRoleChange(user._id, "ADMIN")}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 transition-colors"
+                              disabled={busy}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 transition-colors disabled:opacity-60"
                               title="Promote to Admin"
+                              aria-label={`Promote ${user.name || user.email} to Admin`}
                             >
-                              <UserCheck className="w-3.5 h-3.5" />
+                              {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <UserCheck className="w-3.5 h-3.5" />}
                               Promote
                             </button>
                           ) : (
                             <button
                               onClick={() => handleRoleChange(user._id, "USER")}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 border border-slate-200 transition-colors"
+                              disabled={busy}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 border border-slate-200 transition-colors disabled:opacity-60"
                               title="Demote to User"
+                              aria-label={`Demote ${user.name || user.email} to User`}
                             >
-                              <UserX className="w-3.5 h-3.5" />
+                              {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <UserX className="w-3.5 h-3.5" />}
                               Demote
                             </button>
                           )}
@@ -174,7 +218,8 @@ export default function AdminUsersPage() {
                       </td>
                     </tr>
                   );
-                })}
+                })
+                )}
               </tbody>
             </table>
           </div>

@@ -6,6 +6,7 @@ export interface User {
   role: "USER" | "ADMIN";
   company?: string;
   avatar?: string;
+  subscription?: { planKey?: string; status?: string } | null;
   createdAt: string;
   updatedAt: string;
 }

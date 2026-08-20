@@ -16,6 +16,7 @@ import {
   LayoutTemplate,
 } from "lucide-react";
 import { SignOutButton } from "@clerk/nextjs";
+import BrandLogo from "@/components/common/BrandLogo";
 import { cn } from "@/lib/utils";
 
 const navigation = [
@@ -89,21 +90,13 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
       >
         {/* ── Brand header ──────────────────────────────────────────── */}
         <div className="flex items-center justify-between h-16 px-5 border-b border-slate-800/80 shrink-0">
-          <Link
+          <BrandLogo
+            size="xs"
+            theme="dark"
+            showBadge={true}
             href="/dashboard"
-            className="flex items-center gap-2.5 group"
             onClick={onClose}
-          >
-            <div className="w-8 h-8 bg-gradient-to-tr from-emerald-600 to-green-500 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/25 group-hover:scale-105 transition-transform">
-              <FileText className="w-4 h-4 text-white" />
-            </div>
-            <span className="text-base font-extrabold text-white tracking-tight">
-              Invoice<span className="text-emerald-400">Pilot</span>
-            </span>
-            <span className="text-[9px] font-bold px-1.5 py-0.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-md flex items-center gap-0.5">
-              <Zap className="w-2.5 h-2.5" />AI
-            </span>
-          </Link>
+          />
           <button
             onClick={onClose}
             className="lg:hidden p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"

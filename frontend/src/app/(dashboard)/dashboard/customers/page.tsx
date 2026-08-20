@@ -2,26 +2,47 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Plus, Search, MoreVertical, Edit, Trash2, Eye } from "lucide-react";
+import { Plus, Search, Edit, Trash2, Eye, Loader2 } from "lucide-react";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
-import Loading from "@/components/ui/Loading";
+import ErrorState from "@/components/ui/ErrorState";
 import EmptyState from "@/components/ui/EmptyState";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { formatDate } from "@/lib/utils";
 import type { Customer } from "@/types";
 
 import { useToast } from "@/context/ToastContext";
 
+function CustomerTableSkeleton() {
+  return (
+    <Card padding={false}>
+      <div className="p-6 space-y-5">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div key={i} className="flex items-center gap-4">
+            <Skeleton className="h-4 w-32 rounded-md" />
+            <Skeleton className="h-4 w-40 rounded-md" />
+            <Skeleton className="h-4 w-24 rounded-md" />
+            <Skeleton className="h-4 w-16 rounded-md ml-auto" />
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
 export default function CustomersPage() {
   const { toast, confirmModal } = useToast();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const fetchCustomers = async () => {
     setLoading(true);
+    setError(null);
     try {
       const { api } = await import("@/lib/api");
       const params: Record<string, string> = { page: String(page), limit: "10" };
@@ -31,13 +52,16 @@ export default function CustomersPage() {
         setCustomers(res.data);
         if (res.meta) setTotalPages(res.meta.totalPages);
       }
-    } catch {} finally {
+    } catch {
+      setError("We couldn't load your customers right now. Please try again.");
+    } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
     fetchCustomers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page]);
 
   const handleSearch = (e: React.FormEvent) => {
@@ -54,13 +78,16 @@ export default function CustomersPage() {
       variant: "danger",
     });
     if (!ok) return;
+    setDeletingId(id);
     try {
       const { api } = await import("@/lib/api");
       await api.deleteCustomer(id);
-      setCustomers(customers.filter((c) => c._id !== id));
+      setCustomers((prev) => prev.filter((c) => c._id !== id));
       toast.success("Customer deleted successfully.");
     } catch (err: any) {
       toast.error(err.message || "Failed to delete customer");
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -97,11 +124,17 @@ export default function CustomersPage() {
         </form>
 
         {loading ? (
-          <Loading size="lg" text="Loading customers..." />
+          <CustomerTableSkeleton />
+        ) : error ? (
+          <ErrorState
+            title="Couldn't load your customers"
+            description="We ran into a problem connecting. Please try again."
+            onRetry={fetchCustomers}
+          />
         ) : customers.length === 0 ? (
           <EmptyState
-            title="No customers found"
-            description={search ? "Try a different search" : "Add your first customer"}
+            title={search ? "No customers match your search" : "No customers yet"}
+            description={search ? "Try a different search term" : "Add your first customer"}
             action={
               !search && (
                 <Link href="/dashboard/customers/new">
@@ -123,31 +156,54 @@ export default function CustomersPage() {
                 </tr>
               </thead>
               <tbody>
-                {customers.map((customer) => (
-                  <tr key={customer._id} className="border-b border-gray-50 hover:bg-gray-50">
-                    <td className="py-3 px-4">
-                      <Link href={`/dashboard/customers/${customer._id}`} className="font-medium text-gray-900 hover:text-green-600">
-                        {customer.name}
-                      </Link>
-                    </td>
-                    <td className="py-3 px-4 text-gray-600">{customer.email || "—"}</td>
-                    <td className="py-3 px-4 text-gray-500 hidden sm:table-cell">{customer.phone || "—"}</td>
-                    <td className="py-3 px-4 text-gray-500 hidden md:table-cell">{formatDate(customer.createdAt)}</td>
-                    <td className="py-3 px-4 text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <Link href={`/dashboard/customers/${customer._id}`} className="p-1.5 rounded hover:bg-gray-100">
-                          <Eye className="w-4 h-4 text-gray-500" />
+                {customers.map((customer) => {
+                  const busy = deletingId === customer._id;
+                  return (
+                    <tr key={customer._id} className="border-b border-gray-50 hover:bg-gray-50">
+                      <td className="py-3 px-4">
+                        <Link href={`/dashboard/customers/${customer._id}`} className="font-medium text-gray-900 hover:text-green-600">
+                          {customer.name}
                         </Link>
-                        <Link href={`/dashboard/customers/${customer._id}/edit`} className="p-1.5 rounded hover:bg-gray-100">
-                          <Edit className="w-4 h-4 text-gray-500" />
-                        </Link>
-                        <button onClick={() => handleDelete(customer._id)} className="p-1.5 rounded hover:bg-red-50">
-                          <Trash2 className="w-4 h-4 text-red-500" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td className="py-3 px-4 text-gray-600">{customer.email || "—"}</td>
+                      <td className="py-3 px-4 text-gray-500 hidden sm:table-cell">{customer.phone || "—"}</td>
+                      <td className="py-3 px-4 text-gray-500 hidden md:table-cell">{formatDate(customer.createdAt)}</td>
+                      <td className="py-3 px-4 text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <Link
+                            href={`/dashboard/customers/${customer._id}`}
+                            className="p-1.5 rounded hover:bg-gray-100"
+                            title="View"
+                            aria-label={`View customer ${customer.name}`}
+                          >
+                            <Eye className="w-4 h-4 text-gray-500" />
+                          </Link>
+                          <Link
+                            href={`/dashboard/customers/${customer._id}/edit`}
+                            className="p-1.5 rounded hover:bg-gray-100"
+                            title="Edit"
+                            aria-label={`Edit customer ${customer.name}`}
+                          >
+                            <Edit className="w-4 h-4 text-gray-500" />
+                          </Link>
+                          <button
+                            onClick={() => handleDelete(customer._id, customer.name)}
+                            className="p-1.5 rounded hover:bg-red-50 disabled:opacity-50"
+                            title="Delete"
+                            aria-label={`Delete customer ${customer.name}`}
+                            disabled={busy}
+                          >
+                            {busy ? (
+                              <Loader2 className="w-4 h-4 text-red-500 animate-spin" />
+                            ) : (
+                              <Trash2 className="w-4 h-4 text-red-500" />
+                            )}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
