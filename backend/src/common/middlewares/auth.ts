@@ -7,7 +7,7 @@ import { User } from "../../database/models/index.js";
 import { fetchClerkProfile } from "../../integrations/clerk/clerk.js";
 import { isDuplicateKeyError } from "../utils/mongo.js";
 import { logger } from "../../observability/logger.js";
-import { cacheGetAuthUser, cacheSetAuthUser } from "../cache/redis.js";
+import { cacheGetAuthUser, cacheSetAuthUser, invalidateAuthUser } from "../cache/redis.js";
 
 /**
  * Verifies the Clerk session token, then resolves the Clerk identity to a local
