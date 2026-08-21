@@ -67,7 +67,15 @@ export async function sendEmail(params: SendEmailParams): Promise<void> {
   };
 
   if (params.text) payload.textContent = params.text;
-  if (params.replyTo) payload.replyTo = { email: params.replyTo, name: senderName };
+  if (params.replyTo) {
+    // The processor sends a formatted string: "Name" <email@host.com>
+    // Brevo expects a plain object { email, name }.
+    const quoted = params.replyTo.match(/^"?([^"<]+)"?\s*<([^>]+)>$/);
+    payload.replyTo = {
+      email: quoted?.[2] ?? params.replyTo,
+      name: quoted?.[1]?.trim() || senderName,
+    };
+  }
   if (params.attachments?.length) {
     payload.attachment = params.attachments.map((a) => ({
       content: a.content.toString("base64"),
