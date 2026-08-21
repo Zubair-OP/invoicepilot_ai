@@ -193,7 +193,7 @@ export default function InvoicesPage() {
                   <th className="text-left py-3 px-4 font-medium text-gray-500">Invoice</th>
                   <th className="text-left py-3 px-4 font-medium text-gray-500">Customer</th>
                   <th className="text-left py-3 px-4 font-medium text-gray-500 hidden sm:table-cell">Date</th>
-                  <th className="text-left py-3 px-4 font-medium text-gray-500">Status</th>
+                  <th className="text-left py-3 px-4 font-medium text-gray-500 hidden sm:table-cell">Status</th>
                   <th className="text-right py-3 px-4 font-medium text-gray-500">Amount</th>
                   <th className="text-right py-3 px-4 font-medium text-gray-500">Actions</th>
                 </tr>
@@ -204,16 +204,16 @@ export default function InvoicesPage() {
                   return (
                     <tr key={inv._id} className="border-b border-gray-50 hover:bg-gray-50">
                       <td className="py-3 px-4">
-                        <Link href={`/dashboard/invoices/${inv._id}`} className="font-medium text-gray-900 hover:text-green-600 flex items-center gap-2">
+                        <Link href={`/dashboard/invoices/${inv._id}`} className="font-medium text-gray-900 hover:text-green-600 flex items-center gap-2 whitespace-nowrap">
                           <FileText className="w-4 h-4 text-gray-400" />
                           {inv.invoiceNumber}
                         </Link>
                       </td>
-                      <td className="py-3 px-4 text-gray-600">
+                      <td className="py-3 px-4 text-gray-600 truncate max-w-[120px]">
                         {((typeof inv.customerId === "object" && inv.customerId !== null ? inv.customerId.name : inv.customer?.name) || "—")}
                       </td>
                       <td className="py-3 px-4 text-gray-500 hidden sm:table-cell">{formatDate(inv.issuedAt)}</td>
-                      <td className="py-3 px-4">
+                      <td className="py-3 px-4 hidden sm:table-cell">
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(inv.status)}`}>
                           {inv.status}
                         </span>

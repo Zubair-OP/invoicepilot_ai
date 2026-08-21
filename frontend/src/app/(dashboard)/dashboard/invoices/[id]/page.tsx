@@ -188,7 +188,7 @@ export default function InvoiceDetailPage() {
 
   return (
     <div className="max-w-5xl mx-auto space-y-6 print:m-0 print:p-0 print:max-w-none print:space-y-0">
-      <div className="flex items-center justify-between print:hidden">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 print:hidden">
         <div className="flex items-center gap-4">
           <Link href="/dashboard/invoices" className="p-2 rounded-lg hover:bg-gray-100" aria-label="Back to invoices">
             <ArrowLeft className="w-5 h-5" />
@@ -198,7 +198,7 @@ export default function InvoiceDetailPage() {
             <p className="text-sm text-gray-500">Created {formatDate(invoice.createdAt)}</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 sm:ml-0 ml-14">
           <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(invoice.status)}`}>
             {invoice.status}
           </span>
@@ -300,7 +300,7 @@ export default function InvoiceDetailPage() {
         }`}>
           {/* Header */}
           {templateId === "modern" ? (
-            <div className="bg-gradient-to-r from-indigo-600 to-violet-600 text-white p-6 rounded-xl flex justify-between items-start mb-8 shadow-md">
+            <div className="bg-gradient-to-r from-indigo-600 to-violet-600 text-white p-4 sm:p-6 rounded-xl flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3 mb-8 shadow-md">
               <div>
                 <h1 className="text-3xl font-extrabold tracking-tight">INVOICE</h1>
                 <p className="text-indigo-100 text-sm mt-0.5">#{invoice.invoiceNumber}</p>
@@ -316,7 +316,7 @@ export default function InvoiceDetailPage() {
               </div>
             </div>
           ) : templateId === "minimal" ? (
-            <div className="flex justify-between items-end border-b-2 border-slate-900 pb-4 mb-8">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-end gap-3 border-b-2 border-slate-900 pb-4 mb-8">
               <div>
                 <h1 className="text-2xl font-black tracking-widest text-slate-900">INVOICE</h1>
                 <p className="text-xs text-slate-500 mt-1">NO: {invoice.invoiceNumber}</p>
@@ -332,7 +332,7 @@ export default function InvoiceDetailPage() {
               </div>
             </div>
           ) : (
-            <div className="flex justify-between items-start mb-8">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3 mb-8">
               <div>
                 <h1 className="text-2xl font-bold text-green-600">INVOICE</h1>
                 <p className="text-gray-500 mt-1">#{invoice.invoiceNumber}</p>
@@ -374,41 +374,43 @@ export default function InvoiceDetailPage() {
           })()}
 
           {/* Items Table */}
-          <table className="w-full text-sm mb-8">
-            <thead>
-              <tr className={
-                templateId === "modern"
-                  ? "bg-indigo-50 text-indigo-950 font-bold border-b border-indigo-100"
-                  : templateId === "minimal"
-                  ? "border-b-2 border-slate-900 text-slate-900 font-bold text-xs uppercase"
-                  : "bg-green-600 text-white"
-              }>
-                <th className="text-left py-2.5 px-4 rounded-l-lg">#</th>
-                <th className="text-left py-2.5 px-4">Description</th>
-                <th className="text-right py-2.5 px-4">Qty</th>
-                <th className="text-right py-2.5 px-4">Rate</th>
-                <th className="text-right py-2.5 px-4 rounded-r-lg">Amount</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {invoice.items.map((item, i) => {
-                const itemAmount = item.total ?? item.amount ?? (item.quantity * item.unitPrice);
-                return (
-                  <tr key={i} className={templateId === "modern" ? "hover:bg-indigo-50/20" : "hover:bg-gray-50"}>
-                    <td className="py-3 px-4 text-gray-500">{i + 1}</td>
-                    <td className="py-3 px-4 text-gray-900 font-medium">{item.description}</td>
-                    <td className="py-3 px-4 text-right text-gray-600">{item.quantity}</td>
-                    <td className="py-3 px-4 text-right text-gray-600">{formatCurrency(item.unitPrice, invoice.currency)}</td>
-                    <td className="py-3 px-4 text-right font-bold text-gray-900">{formatCurrency(itemAmount, invoice.currency)}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+          <div className="overflow-x-auto mb-8">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className={
+                  templateId === "modern"
+                    ? "bg-indigo-50 text-indigo-950 font-bold border-b border-indigo-100"
+                    : templateId === "minimal"
+                    ? "border-b-2 border-slate-900 text-slate-900 font-bold text-xs uppercase"
+                    : "bg-green-600 text-white"
+                }>
+                  <th className="text-left py-2.5 px-4 rounded-l-lg">#</th>
+                  <th className="text-left py-2.5 px-4">Description</th>
+                  <th className="text-right py-2.5 px-4 hidden md:table-cell">Qty</th>
+                  <th className="text-right py-2.5 px-4 hidden md:table-cell">Rate</th>
+                  <th className="text-right py-2.5 px-4 rounded-r-lg">Amount</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {invoice.items.map((item, i) => {
+                  const itemAmount = item.total ?? item.amount ?? (item.quantity * item.unitPrice);
+                  return (
+                    <tr key={i} className={templateId === "modern" ? "hover:bg-indigo-50/20" : "hover:bg-gray-50"}>
+                      <td className="py-3 px-4 text-gray-500">{i + 1}</td>
+                      <td className="py-3 px-4 text-gray-900 font-medium">{item.description}</td>
+                      <td className="py-3 px-4 text-right text-gray-600 hidden md:table-cell">{item.quantity}</td>
+                      <td className="py-3 px-4 text-right text-gray-600 hidden md:table-cell">{formatCurrency(item.unitPrice, invoice.currency)}</td>
+                      <td className="py-3 px-4 text-right font-bold text-gray-900">{formatCurrency(itemAmount, invoice.currency)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
 
           {/* Totals */}
           <div className="flex justify-end">
-            <div className={`w-72 space-y-2 p-4 rounded-xl ${
+            <div className={`w-full sm:w-72 space-y-2 p-4 rounded-xl ${
               templateId === "modern"
                 ? "bg-indigo-50/50 border border-indigo-100"
                 : templateId === "minimal"

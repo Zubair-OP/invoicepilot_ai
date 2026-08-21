@@ -333,7 +333,7 @@ export default function DashboardPage() {
                     <th className="text-left py-3 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider hidden sm:table-cell">
                       Date
                     </th>
-                    <th className="text-left py-3 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                    <th className="text-left py-3 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider hidden sm:table-cell">
                       Status
                     </th>
                     <th className="text-right py-3 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">
@@ -350,19 +350,19 @@ export default function DashboardPage() {
                       <td className="py-3.5 px-6">
                         <Link
                           href={`/dashboard/invoices/${inv.id}`}
-                          className="font-semibold text-slate-800 hover:text-emerald-600 transition-colors flex items-center gap-1.5 group-hover:gap-2"
+                          className="font-semibold text-slate-800 hover:text-emerald-600 transition-colors flex items-center gap-1.5 group-hover:gap-2 whitespace-nowrap"
                         >
                           {inv.invoiceNumber}
                           <ChevronRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-all text-emerald-500" />
                         </Link>
                       </td>
-                      <td className="py-3.5 px-4 text-slate-600 font-medium">
+                      <td className="py-3.5 px-4 text-slate-600 font-medium truncate max-w-[120px]">
                         {inv.customerName}
                       </td>
                       <td className="py-3.5 px-4 text-slate-400 text-xs hidden sm:table-cell">
                         {formatDate(inv.issuedAt)}
                       </td>
-                      <td className="py-3.5 px-4">
+                      <td className="py-3.5 px-4 hidden sm:table-cell">
                         <StatusPill status={inv.status} />
                       </td>
                       <td className="py-3.5 px-6 text-right font-bold text-slate-900">
