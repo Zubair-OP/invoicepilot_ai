@@ -42,12 +42,19 @@ const envSchema = z.object({
   GOOGLE_CLIENT_SECRET: z.string().optional(),
   GOOGLE_REDIRECT_URI: z.string().default("http://localhost:3000/api/v1/integrations/google/callback"),
 
-  // Nodemailer / SMTP credentials (used instead of Resend when set)
+// Nodemailer / SMTP credentials (used instead of Resend when set)
   SMTP_HOST: z.string().default("smtp.gmail.com"),
   SMTP_PORT: z.coerce.number().default(587),
   SMTP_USER: z.string().optional(),
   SMTP_PASS: z.string().optional(),
   EMAIL_FROM: z.string().optional(),
+
+  // Brevo HTTP API — the production email transport on Render's free tier,
+  // which blocks outbound SMTP ports (25/465/587). BREVO_SENDER_EMAIL must be
+  // a sender verified inside the Brevo account.
+  BREVO_API_KEY: z.string().optional(),
+  BREVO_SENDER_EMAIL: z.string().optional(),
+  BREVO_SENDER_NAME: z.string().default("InvoicePilot"),
 
   ADMIN_EMAILS: z.string().optional(),
 
