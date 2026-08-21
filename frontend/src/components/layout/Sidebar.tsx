@@ -71,17 +71,19 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
 
   return (
     <>
-      {/* Mobile overlay */}
-      {isOpen && (
-        <div
-          className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-40 lg:hidden print:hidden"
-          onClick={onClose}
-        />
-      )}
+      {/* Mobile overlay — always rendered, fade in/out */}
+      <div
+        className={cn(
+          "fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-40 lg:hidden print:hidden transition-opacity duration-300 ease-in-out will-change-[opacity]",
+          isOpen ? "opacity-100" : "opacity-0 pointer-events-none"
+        )}
+        onClick={onClose}
+        aria-hidden="true"
+      />
 
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-50 w-64 transform transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] lg:translate-x-0 lg:fixed lg:z-auto print:hidden",
+          "fixed inset-y-0 left-0 z-50 w-64 transform transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] will-change-transform lg:translate-x-0 lg:fixed lg:z-auto print:hidden",
           "bg-slate-900 border-r border-slate-800/80 flex flex-col",
           isOpen ? "translate-x-0" : "-translate-x-full"
         )}

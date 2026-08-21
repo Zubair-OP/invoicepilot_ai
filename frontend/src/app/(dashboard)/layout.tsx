@@ -98,7 +98,7 @@ export default function DashboardLayout({
             <button
               id="sidebar-toggle"
               onClick={() => setSidebarOpen(true)}
-              className="lg:hidden p-2 rounded-xl hover:bg-slate-100 text-slate-500 hover:text-slate-800 transition-colors shrink-0"
+              className="lg:hidden p-2 rounded-xl hover:bg-slate-100 text-slate-500 hover:text-slate-800 transition-colors active:scale-95 shrink-0"
               aria-label="Open sidebar"
             >
               <Menu className="w-5 h-5" />
