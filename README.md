@@ -8,7 +8,7 @@ InvoicePilot AI is a full-stack invoice management system built around a simple 
 
 **Create customer → Create invoice → Generate PDF → Send invoice → Track payment → Automate reminders**
 
-The project is split into a Next.js frontend and a Node.js/Express backend. The backend uses MongoDB for persistent data, Redis for caching/rate limiting and BullMQ job queues, Clerk for authentication, Stripe for billing, Resend/Nodemailer for email delivery, and Playwright for server-side PDF rendering.
+The project is split into a Next.js frontend and a Node.js/Express backend. The backend uses MongoDB for persistent data, Redis for caching/rate limiting and BullMQ job queues, Clerk for authentication, Stripe for billing, **Brevo for transactional email delivery**, and Playwright for server-side PDF rendering.
 
 The most important automation is the reminder engine. A persistent BullMQ scheduler periodically sweeps active unpaid invoices, determines whether a reminder milestone is due, prevents duplicate milestones, and queues the email asynchronously. The default reminder interval is 24 hours, while reminder settings support configurable intervals and multiple due-date offsets.
 
@@ -38,9 +38,11 @@ The most important automation is the reminder engine. A persistent BullMQ schedu
 ### Email Delivery
 
 - Send invoices to customers by email
+- **Brevo HTTP API** is used as the production transactional email transport
+- Brevo is accessed over HTTPS (port 443), which avoids SMTP-port restrictions on Render's free tier
 - Invoice email delivery is queued asynchronously instead of blocking the API request
 - Reminder emails use the same queue-based delivery architecture
-- Supports Resend and Nodemailer integrations
+- Supports customer-specific SMTP configuration when configured; otherwise Brevo is the default platform transport when `BREVO_API_KEY` is set
 
 ### Automated Payment Reminders
 
@@ -55,7 +57,7 @@ InvoicePilot's automation layer is designed as a durable background workflow rat
 7. Redis/BullMQ handles asynchronous delivery through a dedicated worker.
 8. The invoice stores reminder history so the same milestone is not sent twice.
 
-The default interval is **24 hours (1,440 minutes)**. Reminder settings also support custom intervals from 5 to 1,440 minutes and multiple offsets from 90 days before due date through 365 days after due date, subject to the application's plan/settings rules.
+The default interval is **24 hours (1,440 minutes)**. Reminder settings support configurable intervals and multiple offsets from 90 days before due date through 365 days after due date, subject to the application's plan/settings rules.
 
 ### Billing
 
@@ -127,7 +129,7 @@ InvoicePilot includes several production-minded safeguards:
                   Email Worker              Reminder Worker       Invoice/PDF Jobs
                          │                           │                    │
                          ▼                           ▼                    ▼
-                      Resend                  Reminder Logic         Playwright
+                       Brevo                  Reminder Logic         Playwright
 ```
 
 ### Why the worker architecture matters
@@ -155,7 +157,8 @@ The API does not need to stay busy waiting for email delivery, reminder processi
 - BullMQ
 - Clerk Backend SDK
 - Stripe
-- Resend / Nodemailer
+- **Brevo HTTP API**
+- Nodemailer for optional customer-specific SMTP configuration
 - Playwright
 - Groq SDK
 - Zod
@@ -229,7 +232,7 @@ Reminder Sweep
               Reminder Worker
                     │
                     ▼
-               Email Provider
+                 Brevo API
                     │
                     ▼
               Customer's Inbox
@@ -297,7 +300,7 @@ Production requires:
 3. **MongoDB** — persistent application data.
 4. **Redis** — BullMQ queues, caching and distributed rate limiting.
 5. **Clerk** — authentication.
-6. **Resend** — transactional email delivery.
+6. **Brevo** — transactional email delivery through its HTTP API.
 7. **Stripe** — billing and webhooks.
 8. **Groq** — optional AI invoice generation.
 
@@ -330,8 +333,9 @@ Important production values include:
 - `CLERK_SECRET_KEY`
 - `CLERK_WEBHOOK_SECRET`
 - `CORS_ORIGIN`
-- `RESEND_API_KEY`
-- `EMAIL_FROM`
+- `BREVO_API_KEY`
+- `BREVO_SENDER_EMAIL`
+- `BREVO_SENDER_NAME`
 - `STRIPE_SECRET_KEY`
 - `STRIPE_WEBHOOK_SECRET`
 - `STRIPE_PUBLISHABLE_KEY`
@@ -369,7 +373,7 @@ cd backend
 npm run test:run
 ```
 
-For a production smoke test, verify health checks, authenticated API access, PDF generation, Stripe webhooks and Clerk webhook delivery after deployment.
+For a production smoke test, verify health checks, authenticated API access, PDF generation, Stripe webhooks, Clerk webhook delivery and Brevo email delivery after deployment.
 
 ## Security Philosophy
 
