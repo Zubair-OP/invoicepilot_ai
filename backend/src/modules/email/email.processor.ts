@@ -9,8 +9,10 @@ import type { EmailJobData } from "./email.types.js";
 
 /**
  * BullMQ job processor: renders the invoice PDF, builds the email from the
- * chosen template, and sends through Resend. On success, transitions DRAFT →
- * SENT (if applicable) and appends the delivery to `emailsSent[]`.
+ * chosen template, and sends through the configured email transport. In
+ * production on Render, the default platform transport is Brevo's HTTP API.
+ * On success, transitions DRAFT → SENT (if applicable) and appends the
+ * delivery to `emailsSent[]`.
  *
  * The worker calls this with retry + exponential backoff, so transient provider
  * errors and cold Playwright renders recover without operator action.
@@ -21,7 +23,6 @@ export async function processEmailJob(job: Job<EmailJobData>): Promise<void> {
   logger.info({ jobId: job.id, invoiceId, type, to }, "Processing email job");
 
   try {
-    // Re-load the invoice from the database
     const invoice = await Invoice.findOne({ _id: invoiceId, userId });
     if (!invoice) throw new NotFoundError("Invoice");
 
@@ -38,7 +39,6 @@ export async function processEmailJob(job: Job<EmailJobData>): Promise<void> {
     const { pdf } = await generateInvoicePDFForUser(userId, invoiceId);
     logger.info({ jobId: job.id, pdfBytes: pdf.length }, "Invoice PDF rendered successfully");
 
-    // Render the template
     const emailData: InvoiceEmailData = {
       businessName,
       customerName: customer.name,
@@ -61,7 +61,7 @@ export async function processEmailJob(job: Job<EmailJobData>): Promise<void> {
       text: rendered.text,
       fromName: businessName,
       fromEmail: businessEmail,
-      replyTo: businessEmail ? `"${businessName}" <${businessEmail}>` : undefined,
+      replyTo: businessEmail ? `\"${businessName}\" <${businessEmail}>` : undefined,
       attachments: [{ filename: `${invoice.invoiceNumber}.pdf`, content: pdf }],
       customSmtp: user?.settings?.customSmtp,
     });
